@@ -102,41 +102,7 @@ export default function ApiKeyManager() {
         </CardContent>
       </Card>
 
-      {apiKeys.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Existing API Keys</CardTitle>
-            <CardDescription>
-              Manage your existing API keys
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {apiKeys.map((apiKey) => (
-                <div
-                  key={apiKey.id}
-                  className="flex items-center justify-between p-3 border rounded-lg"
-                >
-                  <div className="flex-1">
-                    <div className="font-mono text-sm">{apiKey.key}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Created: {new Date(apiKey.createdAt).toLocaleDateString()} • 
-                      Used: {apiKey.usageCount} times
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => deleteKey(apiKey.id)}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      
     </div>
   );
 }
