@@ -8,6 +8,8 @@ import NotFound from "./pages/not-found";
 import Home from "@/pages/Home";
 import LoginPage from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import AdminLogin from "@/pages/AdminLogin";
+import AdminDashboard from "@/pages/AdminDashboard";
 import Footer from "./components/footer";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -31,10 +33,12 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={LoginPage} />
       <Route path="/faculty">
         {() => <ProtectedRoute component={Dashboard} />}
       </Route>
+      <Route path="/admin" component={AdminLogin} />
+      <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

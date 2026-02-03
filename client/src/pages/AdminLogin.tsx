@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { useAuth } from '@/lib/auth';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, LogIn, User, Lock } from 'lucide-react';
+import { Loader2, Shield, User, Lock } from 'lucide-react';
 
-export default function LoginPage() {
-  const { login } = useAuth();
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export default function AdminLogin() {
   const [, setLocation] = useLocation();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,8 +22,31 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      setLocation('/faculty');
+      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Login failed');
+      }
+
+      const data = await response.json();
+      
+      // Store admin auth
+      localStorage.setItem('adminAuth', JSON.stringify({
+        admin_id: data.admin_id,
+        username: data.username,
+        token: data.access_token,
+        role: data.role
+      }));
+
+      // Redirect to admin dashboard
+      setLocation('/admin/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -35,20 +58,23 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/20 mb-4">
+            <Shield className="w-8 h-8 text-primary" />
+          </div>
           <h1 className="text-4xl font-extrabold">
             <span className="text-primary">Meta</span>View
           </h1>
-          <p className="text-muted-foreground mt-2">Faculty Video Validation System</p>
+          <p className="text-muted-foreground mt-2">Admin Portal</p>
         </div>
 
         <Card className="border-border">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl flex items-center gap-2">
-              <LogIn className="w-6 h-6 text-primary" />
-              Faculty Login
+              <Shield className="w-6 h-6 text-primary" />
+              Admin Login
             </CardTitle>
             <CardDescription>
-              Enter your credentials to access the video validation system
+              Enter your admin credentials to access the dashboard
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -60,16 +86,16 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="flex items-center gap-2">
+                <Label htmlFor="username" className="flex items-center gap-2">
                   <User className="w-4 h-4" />
-                  Email
+                  Username
                 </Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="yourname@kgkite.ac.in"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="username"
+                  type="text"
+                  placeholder="admin@example.com"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
                   disabled={loading}
                 />
@@ -90,7 +116,7 @@ export default function LoginPage() {
                   disabled={loading}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Default password: <code className="bg-muted px-1 rounded">faculty123</code>
+                  Default: <code className="bg-muted px-1 rounded">mail-admin@gmail.com / admin123</code>
                 </p>
               </div>
 
@@ -102,8 +128,8 @@ export default function LoginPage() {
                   </>
                 ) : (
                   <>
-                    <LogIn className="w-4 h-4 mr-2" />
-                    Sign In
+                    <Shield className="w-4 h-4 mr-2" />
+                    Sign In as Admin
                   </>
                 )}
               </Button>
@@ -111,12 +137,9 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <div className="text-center mt-6 space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Video Metadata Inspector & Period Validation System
-          </p>
-          <a href="/admin" className="text-sm text-primary hover:underline">
-            Admin Portal →
+        <div className="text-center mt-6">
+          <a href="/" className="text-sm text-muted-foreground hover:text-primary">
+            ← Back to Faculty Login
           </a>
         </div>
       </div>

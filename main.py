@@ -4,8 +4,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pydantic import BaseModel
+import bcrypt
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 import os
 import json
@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 
 from database import get_db, engine
-from models import Base, Faculty, PeriodTiming, VideoUpload, Department, TimetableEntry
+from models import Base, Faculty, PeriodTiming, VideoUpload, Department, TimetableEntry, Admin
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -35,7 +35,6 @@ SECRET_KEY = "metaview-secret-key-change-in-production-2024"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
@@ -54,14 +53,13 @@ class TokenResponse(BaseModel):
 
 
 class FacultyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     name: str
     email: str
     department: Optional[str]
     phone: Optional[str]
-    
-    class Config:
-        from_attributes = True
 
 
 class VideoAnalysisResponse(BaseModel):
@@ -81,16 +79,17 @@ class VideoAnalysisResponse(BaseModel):
 
 
 class PeriodTimingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     period: int
     start_time: str
     end_time: str
     display_time: str
-    
-    class Config:
-        from_attributes = True
 
 
 class VideoHistoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     filename: str
     duration_seconds: Optional[int]
@@ -100,18 +99,16 @@ class VideoHistoryResponse(BaseModel):
     is_qualified: bool
     matched_period: Optional[int]
     validation_message: Optional[str]
-    
-    class Config:
-        from_attributes = True
 
 
 # Helper Functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -384,6 +381,56 @@ def get_period_timings(db: Session = Depends(get_db)):
     return periods
 
 
+@app.get("/api/faculty/schedule")
+def get_faculty_schedule(
+    current_faculty: Faculty = Depends(get_current_faculty),
+    db: Session = Depends(get_db)
+):
+    """Get the current faculty's timetable/schedule"""
+    # Get all timetable entries for this faculty
+    timetable_entries = db.query(TimetableEntry).filter(
+        TimetableEntry.faculty_id == current_faculty.id
+    ).all()
+    
+    # Get all period timings
+    period_timings = db.query(PeriodTiming).order_by(PeriodTiming.period).all()
+    
+    # Organize by day and period
+    schedule_by_day = {}
+    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    
+    for day in days_order:
+        schedule_by_day[day] = []
+    
+    for entry in timetable_entries:
+        if entry.day not in schedule_by_day:
+            schedule_by_day[entry.day] = []
+        
+        # Find corresponding period timing
+        period_info = next((p for p in period_timings if p.period == entry.period), None)
+        
+        schedule_by_day[entry.day].append({
+            "period": entry.period,
+            "start_time": period_info.start_time if period_info else "N/A",
+            "end_time": period_info.end_time if period_info else "N/A",
+            "display_time": period_info.display_time if period_info else "N/A",
+            "subject": entry.subject,
+            "class_type": entry.class_type,
+            "department": entry.department.code if entry.department else "N/A"
+        })
+    
+    # Sort periods within each day
+    for day in schedule_by_day:
+        schedule_by_day[day].sort(key=lambda x: x["period"])
+    
+    return {
+        "faculty_id": current_faculty.id,
+        "faculty_name": current_faculty.name,
+        "department": current_faculty.department.code if current_faculty.department else "N/A",
+        "schedule": schedule_by_day
+    }
+
+
 @app.post("/api/video/analyze", response_model=VideoAnalysisResponse)
 async def analyze_video(
     video: UploadFile = File(...),
@@ -512,6 +559,212 @@ def list_faculties(db: Session = Depends(get_db)):
         }
         for f in faculties
     ]
+
+
+# ======================= ADMIN ENDPOINTS =======================
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminTokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+    admin_id: int
+    username: str
+    role: str
+
+
+class AdminUploadSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    filename: str
+    file_size: Optional[int]
+    duration_seconds: Optional[int]
+    video_start_time: Optional[str]
+    video_end_time: Optional[str]
+    resolution: Optional[str]
+    upload_date: datetime
+    is_qualified: bool
+    matched_period: Optional[int]
+    validation_message: Optional[str]
+    faculty_id: int
+    faculty_name: str
+    faculty_email: str
+    department: Optional[str]
+
+
+class DashboardStats(BaseModel):
+    total_uploads: int
+    qualified_uploads: int
+    not_qualified_uploads: int
+    total_faculties: int
+    active_faculties: int
+    qualification_rate: float
+
+
+def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    """Verify admin JWT token"""
+    token = credentials.credentials
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate admin credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        admin_id: int = payload.get("admin_id")
+        role: str = payload.get("role")
+        if admin_id is None or role != "admin":
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    if admin is None:
+        raise credentials_exception
+    return admin
+
+
+@app.post("/api/admin/login", response_model=AdminTokenResponse)
+def admin_login(request: AdminLoginRequest, db: Session = Depends(get_db)):
+    """Admin login endpoint"""
+    admin = db.query(Admin).filter(Admin.username == request.username).first()
+    
+    if not admin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    
+    # Verify password
+    if not verify_password(request.password, admin.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"admin_id": admin.id, "username": admin.username, "role": "admin"},
+        expires_delta=access_token_expires
+    )
+    
+    return AdminTokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        admin_id=admin.id,
+        username=admin.username,
+        role="admin"
+    )
+
+
+@app.get("/api/admin/dashboard", response_model=DashboardStats)
+def get_admin_dashboard(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Get dashboard statistics for admin"""
+    total_uploads = db.query(VideoUpload).count()
+    qualified_uploads = db.query(VideoUpload).filter(VideoUpload.is_qualified == True).count()
+    not_qualified_uploads = total_uploads - qualified_uploads
+    total_faculties = db.query(Faculty).count()
+    
+    # Active faculties = those who have uploaded at least one video
+    active_faculties = db.query(VideoUpload.faculty_id).distinct().count()
+    
+    qualification_rate = (qualified_uploads / total_uploads * 100) if total_uploads > 0 else 0
+    
+    return DashboardStats(
+        total_uploads=total_uploads,
+        qualified_uploads=qualified_uploads,
+        not_qualified_uploads=not_qualified_uploads,
+        total_faculties=total_faculties,
+        active_faculties=active_faculties,
+        qualification_rate=round(qualification_rate, 1)
+    )
+
+
+@app.get("/api/admin/uploads", response_model=List[AdminUploadSummary])
+def get_all_uploads(
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+    status_filter: Optional[str] = None,
+    faculty_id: Optional[int] = None,
+    department: Optional[str] = None
+):
+    """Get all video uploads with faculty details"""
+    query = db.query(VideoUpload).join(Faculty)
+    
+    if status_filter == "qualified":
+        query = query.filter(VideoUpload.is_qualified == True)
+    elif status_filter == "not_qualified":
+        query = query.filter(VideoUpload.is_qualified == False)
+    
+    if faculty_id:
+        query = query.filter(VideoUpload.faculty_id == faculty_id)
+    
+    if department:
+        query = query.join(Department).filter(Department.code == department)
+    
+    uploads = query.order_by(VideoUpload.upload_date.desc()).all()
+    
+    result = []
+    for upload in uploads:
+        faculty = upload.faculty
+        result.append(AdminUploadSummary(
+            id=upload.id,
+            filename=upload.filename,
+            file_size=upload.file_size,
+            duration_seconds=upload.duration_seconds,
+            video_start_time=upload.video_start_time,
+            video_end_time=upload.video_end_time,
+            resolution=upload.resolution,
+            upload_date=upload.upload_date,
+            is_qualified=upload.is_qualified,
+            matched_period=upload.matched_period,
+            validation_message=upload.validation_message,
+            faculty_id=faculty.id,
+            faculty_name=faculty.name,
+            faculty_email=faculty.email,
+            department=faculty.department.code if faculty.department else None
+        ))
+    
+    return result
+
+
+@app.get("/api/admin/faculties")
+def get_admin_faculties(admin: Admin = Depends(get_current_admin), db: Session = Depends(get_db)):
+    """Get all faculties with their upload stats"""
+    faculties = db.query(Faculty).all()
+    
+    result = []
+    for f in faculties:
+        upload_count = db.query(VideoUpload).filter(VideoUpload.faculty_id == f.id).count()
+        qualified_count = db.query(VideoUpload).filter(
+            VideoUpload.faculty_id == f.id,
+            VideoUpload.is_qualified == True
+        ).count()
+        
+        result.append({
+            "id": f.id,
+            "name": f.name,
+            "email": f.email,
+            "department": f.department.code if f.department else None,
+            "phone": f.phone,
+            "total_uploads": upload_count,
+            "qualified_uploads": qualified_count,
+            "not_qualified_uploads": upload_count - qualified_count
+        })
+    
+    return result
+
+
+@app.get("/api/admin/departments")
+def get_departments(db: Session = Depends(get_db)):
+    """Get all departments"""
+    departments = db.query(Department).all()
+    return [{"id": d.id, "name": d.name, "code": d.code} for d in departments]
 
 
 if __name__ == "__main__":

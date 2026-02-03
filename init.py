@@ -1,8 +1,10 @@
 from database import engine, SessionLocal
 from models import Base, Department, Syllabus, Admin, Faculty, TimetableEntry, PeriodTiming, LabProgram
-from passlib.context import CryptContext
+import bcrypt
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 def init_database():
     Base.metadata.create_all(bind=engine)
@@ -251,7 +253,7 @@ def init_database():
     # Add default admin (email-style username for unified login)
     admin = Admin(
         username="mail-admin@gmail.com",
-        password=pwd_context.hash("admin123")
+        password=hash_password("admin123")
     )
     db.add(admin)
     
@@ -462,7 +464,7 @@ def init_database():
         faculty = Faculty(
             name=faculty_data["name"],
             email=faculty_data["email"],
-            password=pwd_context.hash("faculty123"),  # Default password
+            password=hash_password("faculty123"),  # Default password
             phone=faculty_data["phone"],
             image=faculty_data["image"],
             linkedin=faculty_data["linkedin"],
