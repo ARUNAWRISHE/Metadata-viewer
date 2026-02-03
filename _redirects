@@ -1,0 +1,17 @@
+# Cloudflare Pages build configuration
+version = 1
+
+[build]
+command = "cd client && npm ci && npm run build"
+cwd = ""
+publish = "client/dist"
+
+[build.environment]
+NODE_VERSION = "18"
+NPM_VERSION = "9"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+force = false
