@@ -40,7 +40,7 @@ export function MetadataTable({ data }: { data: VideoMetadata }) {
   return (
     <div className="space-y-6">
       {isFallback && (
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded">
+        <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded">
           <Info className="w-4 h-4 inline mr-2" />
           <p>Some metadata unavailable. Using browser API fallback.</p>
         </div>
