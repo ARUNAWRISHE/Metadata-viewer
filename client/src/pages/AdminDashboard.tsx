@@ -335,8 +335,8 @@ export default function AdminDashboard() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Uploads</p>
-                      <p className="text-3xl font-bold text-blue-600">{stats.total_uploads}</p>
+                      <p className="text-sm text-black/60">Total Uploads</p>
+                      <p className="text-3xl font-bold text-black">{stats.total_uploads}</p>
                     </div>
                     <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
                       <FileVideo className="w-6 h-6 text-blue-600" />
@@ -349,8 +349,8 @@ export default function AdminDashboard() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Qualified</p>
-                      <p className="text-3xl font-bold text-blue-600">{stats.qualified_uploads}</p>
+                      <p className="text-sm text-black/60">Qualified</p>
+                      <p className="text-3xl font-bold text-black">{stats.qualified_uploads}</p>
                     </div>
                     <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
                       <CheckCircle className="w-6 h-6 text-blue-600" />
@@ -363,8 +363,8 @@ export default function AdminDashboard() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Not Qualified</p>
-                      <p className="text-3xl font-bold text-blue-400">{stats.not_qualified_uploads}</p>
+                      <p className="text-sm text-black/60">Not Qualified</p>
+                      <p className="text-3xl font-bold text-black">{stats.not_qualified_uploads}</p>
                     </div>
                     <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
                       <XCircle className="w-6 h-6 text-blue-400" />
@@ -377,8 +377,8 @@ export default function AdminDashboard() {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Qualification Rate</p>
-                      <p className="text-3xl font-bold text-blue-600">{stats.qualification_rate}%</p>
+                      <p className="text-sm text-black/60">Qualification Rate</p>
+                      <p className="text-3xl font-bold text-black">{stats.qualification_rate}%</p>
                     </div>
                     <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
                       <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -390,26 +390,26 @@ export default function AdminDashboard() {
 
             {/* Faculty Stats */}
             <div className="grid gap-4 md:grid-cols-2">
-              <Card>
+              <Card className="bg-white border-blue-200">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-primary" />
+                  <CardTitle className="flex items-center gap-2 text-black">
+                    <Users className="w-5 h-5 text-blue-600" />
                     Faculty Overview
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Total Faculties</span>
-                      <span className="text-xl font-bold">{stats.total_faculties}</span>
+                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                      <span className="text-sm text-black/60">Total Faculties</span>
+                      <span className="text-xl font-bold text-black">{stats.total_faculties}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Active (uploaded videos)</span>
-                      <span className="text-xl font-bold text-blue-600">{stats.active_faculties}</span>
+                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                      <span className="text-sm text-black/60">Active (uploaded videos)</span>
+                      <span className="text-xl font-bold text-black">{stats.active_faculties}</span>
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Inactive</span>
-                      <span className="text-xl font-bold text-muted-foreground">
+                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                      <span className="text-sm text-black/60">Inactive</span>
+                      <span className="text-xl font-bold text-black">
                         {stats.total_faculties - stats.active_faculties}
                       </span>
                     </div>
@@ -417,30 +417,30 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="bg-white border-blue-200">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-primary" />
+                  <CardTitle className="flex items-center gap-2 text-black">
+                    <Clock className="w-5 h-5 text-blue-600" />
                     Recent Activity
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   {uploads.length === 0 ? (
-                    <p className="text-center py-8 text-muted-foreground">No uploads yet</p>
+                    <p className="text-center py-8 text-black/60">No uploads yet</p>
                   ) : (
                     <div className="space-y-3">
                       {uploads.slice(0, 5).map(upload => (
-                        <div key={upload.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30">
+                        <div key={upload.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-blue-50">
                           {upload.is_qualified ? (
                             <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
                           ) : (
                             <XCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{upload.faculty_name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{upload.filename}</p>
+                            <p className="text-sm font-medium truncate text-black">{upload.faculty_name}</p>
+                            <p className="text-xs text-black/60 truncate">{upload.filename}</p>
                           </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="text-xs text-black/60 whitespace-nowrap">
                             {formatDate(upload.upload_date).split(',')[0]}
                           </span>
                         </div>
@@ -457,17 +457,17 @@ export default function AdminDashboard() {
         {activeTab === 'uploads' && (
           <div className="space-y-4">
             {/* Filters */}
-            <Card>
+            <Card className="bg-white border-blue-200">
               <CardContent className="pt-6">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40\" />
                       <Input
                         placeholder="Search by faculty, filename, or department..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 text-black"
                       />
                     </div>
                   </div>
@@ -475,7 +475,7 @@ export default function AdminDashboard() {
                     <select
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value)}
-                      className="px-3 py-2 rounded-md border border-input bg-background text-sm"
+                      className="px-3 py-2 rounded-md border border-blue-200 bg-white text-sm text-black"
                     >
                       <option value="all">All Status</option>
                       <option value="qualified">Qualified</option>
@@ -484,14 +484,14 @@ export default function AdminDashboard() {
                     <select
                       value={departmentFilter}
                       onChange={(e) => setDepartmentFilter(e.target.value)}
-                      className="px-3 py-2 rounded-md border border-input bg-background text-sm"
+                      className="px-3 py-2 rounded-md border border-blue-200 bg-white text-sm text-black"
                     >
                       <option value="all">All Departments</option>
                       {departments.map(dept => (
                         <option key={dept.id} value={dept.code}>{dept.code}</option>
                       ))}
                     </select>
-                    <Button variant="outline" size="sm" onClick={exportToCSV}>
+                    <Button variant="outline" size="sm" onClick={exportToCSV} className="border-blue-200 text-black hover:bg-blue-50">
                       <Download className="w-4 h-4 mr-2" />
                       Export
                     </Button>
@@ -501,14 +501,14 @@ export default function AdminDashboard() {
             </Card>
 
             {/* Uploads Table */}
-            <Card>
+            <Card className="bg-white border-blue-200">
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+                <CardTitle className="flex items-center justify-between text-black">
                   <span className="flex items-center gap-2">
-                    <FileVideo className="w-5 h-5 text-primary" />
+                    <FileVideo className="w-5 h-5 text-blue-600" />
                     Video Uploads
                   </span>
-                  <span className="text-sm font-normal text-muted-foreground">
+                  <span className="text-sm font-normal text-black/60">
                     {filteredUploads.length} records
                   </span>
                 </CardTitle>
@@ -516,34 +516,34 @@ export default function AdminDashboard() {
               <CardContent>
                 {filteredUploads.length === 0 ? (
                   <div className="text-center py-12">
-                    <FileVideo className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                    <p className="text-muted-foreground">No uploads found</p>
+                    <FileVideo className="w-12 h-12 mx-auto mb-4 text-blue-300" />
+                    <p className="text-black/60">No uploads found</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">STATUS</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">FACULTY</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground hidden md:table-cell">DEPT</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">FILENAME</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground hidden lg:table-cell">DURATION</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground hidden lg:table-cell">PERIOD</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">DATE</th>
+                        <tr className="border-b border-blue-100">
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60">STATUS</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60">FACULTY</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden md:table-cell">DEPT</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60">FILENAME</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden lg:table-cell">DURATION</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden lg:table-cell">PERIOD</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60">DATE</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredUploads.map(upload => (
-                          <tr key={upload.id} className="border-b border-border/50 hover:bg-muted/30">
+                          <tr key={upload.id} className="border-b border-blue-50 hover:bg-blue-50">
                             <td className="py-3 px-2">
                               {upload.is_qualified ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-600">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-600">
                                   <CheckCircle className="w-3 h-3" />
                                   <span className="hidden sm:inline">Qualified</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-200/50 text-blue-500">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-400">
                                   <XCircle className="w-3 h-3" />
                                   <span className="hidden sm:inline">Failed</span>
                                 </span>
@@ -551,32 +551,32 @@ export default function AdminDashboard() {
                             </td>
                             <td className="py-3 px-2">
                               <div>
-                                <p className="font-medium text-sm">{upload.faculty_name}</p>
-                                <p className="text-xs text-muted-foreground">{upload.faculty_email}</p>
+                                <p className="font-medium text-sm text-black">{upload.faculty_name}</p>
+                                <p className="text-xs text-black/60">{upload.faculty_email}</p>
                               </div>
                             </td>
                             <td className="py-3 px-2 hidden md:table-cell">
-                              <span className="px-2 py-1 rounded bg-muted text-xs">{upload.department || 'N/A'}</span>
+                              <span className="px-2 py-1 rounded bg-blue-100 text-xs text-black">{upload.department || 'N/A'}</span>
                             </td>
                             <td className="py-3 px-2">
-                              <p className="text-sm truncate max-w-[200px]" title={upload.filename}>
+                              <p className="text-sm truncate max-w-[200px] text-black" title={upload.filename}>
                                 {upload.filename}
                               </p>
-                              <p className="text-xs text-muted-foreground">{upload.resolution || 'N/A'}</p>
+                              <p className="text-xs text-black/60">{upload.resolution || 'N/A'}</p>
                             </td>
-                            <td className="py-3 px-2 text-sm hidden lg:table-cell">
+                            <td className="py-3 px-2 text-sm text-black hidden lg:table-cell">
                               {formatDuration(upload.duration_seconds)}
                             </td>
                             <td className="py-3 px-2 text-sm hidden lg:table-cell">
                               {upload.matched_period ? (
-                                <span className="px-2 py-1 rounded bg-primary/20 text-primary text-xs">
+                                <span className="px-2 py-1 rounded bg-blue-100 text-blue-600 text-xs">
                                   Period {upload.matched_period}
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground">—</span>
+                                <span className="text-black/40">—</span>
                               )}
                             </td>
-                            <td className="py-3 px-2 text-xs text-muted-foreground whitespace-nowrap">
+                            <td className="py-3 px-2 text-xs text-black/60 whitespace-nowrap">
                               {formatDate(upload.upload_date)}
                             </td>
                           </tr>
@@ -595,48 +595,48 @@ export default function AdminDashboard() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-primary" />
+                <CardTitle className="flex items-center gap-2 text-black">
+                  <Users className="w-5 h-5 text-blue-600" />
                   Faculty Members
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-black/60">
                   Overview of all faculty members and their upload statistics
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {faculties.map(faculty => (
-                    <Card key={faculty.id} className="bg-muted/20">
+                    <Card key={faculty.id} className="bg-white border-blue-200 hover:border-blue-400 transition-colors">
                       <CardContent className="pt-6">
                         <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg font-bold text-primary">
+                          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg font-bold text-blue-600">
                               {faculty.name.charAt(0)}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold truncate">{faculty.name}</h3>
-                            <p className="text-xs text-muted-foreground truncate">{faculty.email}</p>
+                            <h3 className="font-semibold truncate text-black">{faculty.name}</h3>
+                            <p className="text-xs text-black/60 truncate">{faculty.email}</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="px-2 py-0.5 rounded bg-muted text-xs">
+                              <span className="px-2 py-0.5 rounded bg-blue-100 text-xs text-black">
                                 {faculty.department || 'N/A'}
                               </span>
                             </div>
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border">
+                        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-blue-100">
                           <div className="text-center">
-                            <p className="text-lg font-bold">{faculty.total_uploads}</p>
-                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="text-lg font-bold text-black">{faculty.total_uploads}</p>
+                            <p className="text-xs text-black/60">Total</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-lg font-bold text-blue-600">{faculty.qualified_uploads}</p>
-                            <p className="text-xs text-muted-foreground">Qualified</p>
+                            <p className="text-lg font-bold text-black">{faculty.qualified_uploads}</p>
+                            <p className="text-xs text-black/60">Qualified</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-lg font-bold text-blue-400">{faculty.not_qualified_uploads}</p>
-                            <p className="text-xs text-muted-foreground">Failed</p>
+                            <p className="text-lg font-bold text-black">{faculty.not_qualified_uploads}</p>
+                            <p className="text-xs text-black/60">Failed</p>
                           </div>
                         </div>
                       </CardContent>
