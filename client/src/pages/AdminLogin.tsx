@@ -62,7 +62,7 @@ export default function AdminLogin() {
             <Shield className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-4xl font-extrabold">
-            <span className="text-primary">Meta</span>View
+            <span className="text-primary">Meta</span><span className="text-foreground">View</span>
           </h1>
           <p className="text-muted-foreground mt-2">Admin Portal</p>
         </div>

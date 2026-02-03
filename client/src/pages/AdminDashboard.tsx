@@ -262,29 +262,29 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="border-b border-border bg-card sticky top-0 z-10">
+      <header className="border-b border-blue-600 bg-blue-500 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-primary" />
+            <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-black" />
             </div>
             <div>
               <h1 className="text-xl font-bold">
-                <span className="text-primary">Meta</span>View Admin
+                <span className="text-white">Meta</span><span className="text-black">View Admin</span>
               </h1>
-              <p className="text-xs text-muted-foreground">Dashboard</p>
+              <p className="text-xs text-black/70">Dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={fetchData}>
+            <Button variant="ghost" size="sm" onClick={fetchData} className="text-black hover:bg-white/20">
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
             <div className="text-right hidden sm:block">
-              <span className="text-sm font-medium">{adminAuth?.username}</span>
-              <p className="text-xs text-muted-foreground">Administrator</p>
+              <span className="text-sm font-medium text-black">{adminAuth?.username}</span>
+              <p className="text-xs text-black/70">Administrator</p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleLogout}>
+            <Button variant="outline" size="sm" onClick={handleLogout} className="bg-white text-black border-white hover:bg-blue-100">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -293,7 +293,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* Tab Navigation */}
-      <div className="border-b border-border bg-card/50">
+      <div className="border-b border-blue-300 bg-blue-100">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="flex gap-1">
             {[
@@ -306,8 +306,8 @@ export default function AdminDashboard() {
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                    ? 'border-blue-600 text-black'
+                    : 'border-transparent text-black/60 hover:text-black'
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -331,57 +331,57 @@ export default function AdminDashboard() {
           <div className="space-y-6">
             {/* Stats Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+              <Card className="bg-white border-blue-200">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Total Uploads</p>
-                      <p className="text-3xl font-bold">{stats.total_uploads}</p>
+                      <p className="text-3xl font-bold text-blue-600">{stats.total_uploads}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <FileVideo className="w-6 h-6 text-blue-500" />
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                      <FileVideo className="w-6 h-6 text-blue-600" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+              <Card className="bg-white border-blue-200">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Qualified</p>
-                      <p className="text-3xl font-bold text-green-500">{stats.qualified_uploads}</p>
+                      <p className="text-3xl font-bold text-blue-600">{stats.qualified_uploads}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <CheckCircle className="w-6 h-6 text-green-500" />
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                      <CheckCircle className="w-6 h-6 text-blue-600" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
+              <Card className="bg-white border-blue-200">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Not Qualified</p>
-                      <p className="text-3xl font-bold text-red-500">{stats.not_qualified_uploads}</p>
+                      <p className="text-3xl font-bold text-blue-400">{stats.not_qualified_uploads}</p>
                     </div>
-                    <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                      <XCircle className="w-6 h-6 text-red-500" />
+                    <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
+                      <XCircle className="w-6 h-6 text-blue-400" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+              <Card className="bg-white border-blue-200">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Qualification Rate</p>
-                      <p className="text-3xl font-bold text-purple-500">{stats.qualification_rate}%</p>
+                      <p className="text-3xl font-bold text-blue-600">{stats.qualification_rate}%</p>
                     </div>
-                    <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-purple-500" />
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                      <TrendingUp className="w-6 h-6 text-blue-600" />
                     </div>
                   </div>
                 </CardContent>
@@ -405,7 +405,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
                       <span className="text-sm text-muted-foreground">Active (uploaded videos)</span>
-                      <span className="text-xl font-bold text-green-500">{stats.active_faculties}</span>
+                      <span className="text-xl font-bold text-blue-600">{stats.active_faculties}</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
                       <span className="text-sm text-muted-foreground">Inactive</span>
@@ -432,9 +432,9 @@ export default function AdminDashboard() {
                       {uploads.slice(0, 5).map(upload => (
                         <div key={upload.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30">
                           {upload.is_qualified ? (
-                            <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                            <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
                           ) : (
-                            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                            <XCircle className="w-4 h-4 text-blue-400 flex-shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{upload.faculty_name}</p>
@@ -538,12 +538,12 @@ export default function AdminDashboard() {
                           <tr key={upload.id} className="border-b border-border/50 hover:bg-muted/30">
                             <td className="py-3 px-2">
                               {upload.is_qualified ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-500/20 text-blue-600">
                                   <CheckCircle className="w-3 h-3" />
                                   <span className="hidden sm:inline">Qualified</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-red-500/20 text-red-400">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-200/50 text-blue-500">
                                   <XCircle className="w-3 h-3" />
                                   <span className="hidden sm:inline">Failed</span>
                                 </span>
@@ -631,11 +631,11 @@ export default function AdminDashboard() {
                             <p className="text-xs text-muted-foreground">Total</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-lg font-bold text-green-500">{faculty.qualified_uploads}</p>
+                            <p className="text-lg font-bold text-blue-600">{faculty.qualified_uploads}</p>
                             <p className="text-xs text-muted-foreground">Qualified</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-lg font-bold text-red-500">{faculty.not_qualified_uploads}</p>
+                            <p className="text-lg font-bold text-blue-400">{faculty.not_qualified_uploads}</p>
                             <p className="text-xs text-muted-foreground">Failed</p>
                           </div>
                         </div>

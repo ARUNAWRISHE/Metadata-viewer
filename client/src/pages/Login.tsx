@@ -36,7 +36,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-extrabold">
-            <span className="text-primary">Meta</span>View
+            <span className="text-primary">Meta</span><span className="text-foreground">View</span>
           </h1>
           <p className="text-muted-foreground mt-2">Faculty Video Validation System</p>
         </div>

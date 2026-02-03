@@ -197,23 +197,23 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="border-b border-border bg-card">
+      <header className="border-b border-blue-600 bg-blue-500">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">
-              <span className="text-primary">Meta</span>View
+              <span className="text-white">Meta</span><span className="text-black">View</span>
             </h1>
-            <p className="text-sm text-muted-foreground">Faculty Video Validation</p>
+            <p className="text-sm text-black/70">Faculty Video Validation</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-primary" />
-                <span className="font-medium">{user?.faculty_name}</span>
+                <User className="w-4 h-4 text-black" />
+                <span className="font-medium text-black">{user?.faculty_name}</span>
               </div>
-              <span className="text-sm text-muted-foreground">{user?.department}</span>
+              <span className="text-sm text-black/70">{user?.department}</span>
             </div>
-            <Button variant="outline" size="sm" onClick={logout}>
+            <Button variant="outline" size="sm" onClick={logout} className="bg-white text-black border-white hover:bg-blue-100">
               <LogOut className="w-4 h-4 mr-2" />
               Logout
             </Button>
@@ -306,11 +306,11 @@ export default function Dashboard() {
                 {result && (
                   <div className="space-y-6">
                     {/* Validation Result */}
-                    <Alert variant={result.is_qualified ? "default" : "destructive"} className={result.is_qualified ? "border-green-500 bg-green-500/10" : ""}>
+                    <Alert variant={result.is_qualified ? "default" : "destructive"} className={result.is_qualified ? "border-blue-500 bg-blue-500/10" : "border-blue-300 bg-blue-100"}>
                       {result.is_qualified ? (
-                        <CheckCircle className="w-5 h-5 text-green-500" />
+                        <CheckCircle className="w-5 h-5 text-blue-600" />
                       ) : (
-                        <XCircle className="w-5 h-5" />
+                        <XCircle className="w-5 h-5 text-blue-400" />
                       )}
                       <AlertTitle className="text-lg">
                         {result.is_qualified ? 'Video Qualified!' : 'Video Not Qualified'}
@@ -538,16 +538,16 @@ export default function Dashboard() {
                         key={item.id}
                         className={`p-4 border rounded-lg ${
                           item.is_qualified
-                            ? 'border-green-500/30 bg-green-500/5'
-                            : 'border-red-500/30 bg-red-500/5'
+                            ? 'border-blue-500/30 bg-blue-500/5'
+                            : 'border-blue-300/30 bg-blue-100/50'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-start gap-3">
                             {item.is_qualified ? (
-                              <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                              <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5" />
                             ) : (
-                              <XCircle className="w-5 h-5 text-red-500 mt-0.5" />
+                              <XCircle className="w-5 h-5 text-blue-400 mt-0.5" />
                             )}
                             <div>
                               <p className="font-medium">{item.filename}</p>
@@ -571,8 +571,8 @@ export default function Dashboard() {
                           <span
                             className={`px-2 py-1 text-xs rounded-full ${
                               item.is_qualified
-                                ? 'bg-green-500/20 text-green-400'
-                                : 'bg-red-500/20 text-red-400'
+                                ? 'bg-blue-500/20 text-blue-600'
+                                : 'bg-blue-200/50 text-blue-500'
                             }`}
                           >
                             {item.is_qualified ? 'Qualified' : 'Not Qualified'}

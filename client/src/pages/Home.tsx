@@ -42,18 +42,18 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-6 md:p-12">
-      <div className="max-w-6xl mx-auto space-y-12">
-        <header className="flex flex-col md:flex-row justify-between gap-6 border-b border-border pb-8">
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="max-w-6xl mx-auto">
+        <header className="flex flex-col md:flex-row justify-between gap-6 bg-blue-500 px-6 py-8 md:px-12">
           <div>
             <h1 className="text-4xl font-extrabold">
-              <span className="text-primary">Meta</span>View
+              <span className="text-white">Meta</span><span className="text-black">View</span>
             </h1>
-            <p className="text-muted-foreground">Video Metadata Inspector & API Service</p>
+            <p className="text-black/70">Video Metadata Inspector & API Service</p>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/faculty">
-              <Button variant="outline" className="flex items-center gap-2">
+              <Button variant="outline" className="flex items-center gap-2 bg-white text-black border-white hover:bg-blue-100">
                 <Users className="w-4 h-4" />
                 Faculty Portal
               </Button>
@@ -61,7 +61,7 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="space-y-8">
+        <main className="space-y-8 p-6 md:p-12">
           <Tabs defaultValue="analyze" className="w-full">
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="analyze">Analyze Video</TabsTrigger>

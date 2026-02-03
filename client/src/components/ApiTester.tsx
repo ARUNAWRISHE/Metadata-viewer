@@ -103,9 +103,9 @@ export default function ApiTester() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {result.success ? (
-                <CheckCircle className="w-5 h-5 text-green-500" />
+                <CheckCircle className="w-5 h-5 text-blue-600" />
               ) : (
-                <XCircle className="w-5 h-5 text-red-500" />
+                <XCircle className="w-5 h-5 text-blue-400" />
               )}
               API Response
             </CardTitle>
