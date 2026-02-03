@@ -557,6 +557,88 @@ def get_video_history(
     return uploads
 
 
+@app.get("/api/video/today-status")
+def get_today_upload_status(
+    current_faculty: Faculty = Depends(get_current_faculty),
+    db: Session = Depends(get_db)
+):
+    """Get today's upload status for each period the faculty teaches"""
+    # Get today's date boundaries (12 AM to 12 AM IST)
+    IST_OFFSET = timedelta(hours=5, minutes=30)
+    now_utc = datetime.now(timezone.utc)
+    now_ist = now_utc + IST_OFFSET
+    
+    # Today's start and end in IST
+    today_start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end_ist = today_start_ist + timedelta(days=1)
+    
+    # Convert back to UTC for database query
+    today_start_utc = today_start_ist - IST_OFFSET
+    today_end_utc = today_end_ist - IST_OFFSET
+    
+    # Get today's day name
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    today_day = days[now_ist.weekday()]
+    
+    # Get faculty's schedule for today
+    timetable_entries = db.query(TimetableEntry).filter(
+        TimetableEntry.faculty_id == current_faculty.id,
+        TimetableEntry.day == today_day
+    ).all()
+    
+    # Get all period timings (using 'period' column, not 'period_number')
+    period_timings = {p.period: p for p in db.query(PeriodTiming).all()}
+    
+    # Get today's uploads for this faculty
+    today_uploads = db.query(VideoUpload).filter(
+        VideoUpload.faculty_id == current_faculty.id,
+        VideoUpload.upload_date >= today_start_utc.replace(tzinfo=None),
+        VideoUpload.upload_date < today_end_utc.replace(tzinfo=None)
+    ).all()
+    
+    # Create a map of period -> upload
+    uploads_by_period = {}
+    for upload in today_uploads:
+        if upload.matched_period:
+            uploads_by_period[upload.matched_period] = {
+                "id": upload.id,
+                "filename": upload.filename,
+                "is_qualified": upload.is_qualified,
+                "upload_date": upload.upload_date.isoformat(),
+                "validation_message": upload.validation_message
+            }
+    
+    # Build response with faculty's today's periods
+    periods_status = []
+    for entry in timetable_entries:
+        period = period_timings.get(entry.period)
+        if period:
+            upload = uploads_by_period.get(entry.period)
+            # start_time and end_time are already strings like "08:00 AM"
+            dept_name = entry.department.name if entry.department else "N/A"
+            periods_status.append({
+                "period": entry.period,
+                "start_time": period.start_time,
+                "end_time": period.end_time,
+                "display_time": period.display_time or f"{period.start_time} - {period.end_time}",
+                "subject": entry.subject,
+                "class_type": entry.class_type,
+                "department": dept_name,
+                "uploaded": upload is not None,
+                "upload_info": upload
+            })
+    
+    # Sort by period number
+    periods_status.sort(key=lambda x: x["period"])
+    
+    return {
+        "date": now_ist.strftime("%Y-%m-%d"),
+        "day": today_day,
+        "faculty_name": current_faculty.name,
+        "periods": periods_status
+    }
+
+
 @app.get("/api/faculties")
 def list_faculties(db: Session = Depends(get_db)):
     """List all faculties (for testing)"""
