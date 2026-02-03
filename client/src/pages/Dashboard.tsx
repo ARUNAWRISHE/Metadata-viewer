@@ -101,7 +101,7 @@ export default function Dashboard() {
   };
 
   const handleAnalyze = async () => {
-    if (!file) return;
+    if (!file || !selectedPeriod) return;
 
     setLoading(true);
     setError(null);
@@ -110,6 +110,7 @@ export default function Dashboard() {
     try {
       const formData = new FormData();
       formData.append('video', file);
+      formData.append('period', selectedPeriod.period.toString());
 
       const response = await fetch(`${API_BASE_URL}/api/video/analyze`, {
         method: 'POST',
