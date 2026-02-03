@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, F
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import JWTError, jwt
 import bcrypt
 from pydantic import BaseModel, ConfigDict
@@ -113,7 +113,7 @@ def hash_password(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -251,6 +251,11 @@ def validate_video_timing(video_start_time: str, video_end_time: str, duration_s
                 "matched_period_time": None,
                 "message": f"Could not parse video start time: {video_start_time}"
             }
+        
+        # Convert from UTC to IST (Indian Standard Time = UTC + 5:30)
+        # Video metadata stores time in UTC, but period timings are in IST
+        IST_OFFSET = timedelta(hours=5, minutes=30)
+        video_start = video_start + IST_OFFSET
         
         # Calculate video end time
         video_end = video_start + timedelta(seconds=duration_seconds)
@@ -473,25 +478,31 @@ async def analyze_video(
             }
         
         duration_seconds = metadata.get("duration_seconds", 0)
-        video_start_time = metadata.get("creation_time")
+        video_start_time_utc = metadata.get("creation_time")
         
-        # Calculate end time if we have start time
+        # Convert UTC to IST for display
+        IST_OFFSET = timedelta(hours=5, minutes=30)
+        video_start_time = None
         video_end_time = None
-        if video_start_time and duration_seconds:
+        
+        if video_start_time_utc and duration_seconds:
             try:
                 for fmt in ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S"]:
                     try:
-                        start_dt = datetime.strptime(video_start_time, fmt)
-                        end_dt = start_dt + timedelta(seconds=duration_seconds)
-                        video_end_time = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                        start_dt_utc = datetime.strptime(video_start_time_utc, fmt)
+                        # Convert to IST
+                        start_dt_ist = start_dt_utc + IST_OFFSET
+                        end_dt_ist = start_dt_ist + timedelta(seconds=duration_seconds)
+                        video_start_time = start_dt_ist.strftime("%I:%M:%S %p IST")
+                        video_end_time = end_dt_ist.strftime("%I:%M:%S %p IST")
                         break
                     except ValueError:
                         continue
             except:
                 pass
         
-        # Validate against period timings
-        validation_result = validate_video_timing(video_start_time, video_end_time, duration_seconds, db)
+        # Validate against period timings (pass UTC time, conversion happens inside)
+        validation_result = validate_video_timing(video_start_time_utc, video_end_time, duration_seconds, db)
         
         # Save upload record
         upload_record = VideoUpload(
