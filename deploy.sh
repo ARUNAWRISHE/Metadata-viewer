@@ -1,32 +1,28 @@
 #!/bin/bash
 
-echo "🚀 Starting deployment to Cloudflare Pages..."
+echo "🚀 Starting deployment with Backend on Render..."
 
-# Step 1: Backend Deployment Instructions
+# Backend is already deployed
 echo "
-📋 DEPLOYMENT STEPS:
+✅ Backend Status: DEPLOYED
+🔗 Backend URL: https://metadata-viewer.onrender.com
 
-🔧 STEP 1A: Deploy Backend (Railway - Updated)
-1. Go to https://railway.app/
-2. Sign in with GitHub  
-3. Create a new workspace if prompted
-4. Click 'New Project' > 'Deploy from GitHub repo'
-5. Select: ARUNAWRISHE/Metadata-viewer
-6. In Variables tab, set: PORT = 8000
-7. Railway will auto-deploy from main branch
+📋 FRONTEND DEPLOYMENT STEPS:
 
-🔧 STEP 1B: Alternative - Deploy Backend (Render - Recommended)
-1. Go to https://render.com/
-2. Sign up with GitHub
-3. Click 'New +' > 'Web Service'  
-4. Connect: ARUNAWRISHE/Metadata-viewer
-5. Settings:
-   - Runtime: Python 3
-   - Build: pip install -r requirements.txt
-   - Start: uvicorn main:app --host 0.0.0.0 --port $PORT
-   - Instance: Free tier
+🌐 STEP 1: Deploy Frontend (Netlify - Recommended)
+1. Go to https://netlify.com/
+2. Sign in with GitHub
+3. Click 'Add new site' > 'Import an existing project'
+4. Connect GitHub and select: ARUNAWRISHE/Metadata-viewer
+5. Build settings:
+   - Base directory: client
+   - Build command: npm run build  
+   - Publish directory: client/dist
+6. Deploy site
+7. In Site settings > Environment variables, add:
+   - VITE_API_URL: https://metadata-viewer.onrender.com
 
-🌐 STEP 2: Deploy Frontend (Cloudflare Pages)  
+🌐 STEP 1B: Alternative - Deploy Frontend (Cloudflare Pages)  
 1. Go to https://pages.cloudflare.com/
 2. Click 'Create a project' > 'Connect to Git'
 3. Select: ARUNAWRISHE/Metadata-viewer

@@ -1,6 +1,27 @@
 # Deployment Guide
 
-## Frontend Deployment (Cloudflare Pages)
+## Frontend Deployment Options
+
+### Option 1: Netlify (Recommended)
+
+#### Step 1: Deploy to Netlify
+1. Go to [Netlify](https://netlify.com/)
+2. Sign up/Sign in with GitHub
+3. Click "Add new site" → "Import an existing project"
+4. Connect to Git provider → Select GitHub
+5. Choose your repository: `ARUNAWRISHE/Metadata-viewer`
+6. Configure build settings:
+   - **Base directory**: `client`
+   - **Build command**: `npm run build`
+   - **Publish directory**: `client/dist`
+7. Click "Deploy site"
+
+#### Step 2: Configure Environment Variables
+1. In Netlify dashboard, go to Site settings → Environment variables
+2. Add: **`VITE_API_URL = https://metadata-viewer.onrender.com`**
+3. Redeploy the site
+
+### Option 2: Cloudflare Pages
 
 ### Step 1: Prepare Repository
 1. Commit and push all changes to GitHub
