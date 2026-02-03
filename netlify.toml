@@ -5,7 +5,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  VITE_API_URL = "https://metadata-viewer.onrender.com"
+  VITE_API_URL = "https://web-production-3d986.up.railway.app"
 
 [[redirects]]
   from = "/*"
