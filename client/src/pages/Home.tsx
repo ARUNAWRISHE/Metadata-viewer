@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { Link } from 'wouter';
 import { VideoDropzone } from '@/components/VideoDropzone';
 import { VideoPreview } from '@/components/VideoPreview';
 import { MetadataTable } from '@/components/MetadataTable';
 import { analyzeVideo, type VideoMetadata } from '@/lib/mediainfo';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Users } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ApiKeyManager from '@/components/ApiKeyManager';
@@ -49,6 +50,14 @@ export default function Home() {
               <span className="text-primary">Meta</span>View
             </h1>
             <p className="text-muted-foreground">Video Metadata Inspector & API Service</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link href="/faculty">
+              <Button variant="outline" className="flex items-center gap-2">
+                <Users className="w-4 h-4" />
+                Faculty Portal
+              </Button>
+            </Link>
           </div>
         </header>
 

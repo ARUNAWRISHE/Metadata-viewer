@@ -457,19 +457,21 @@ def init_database():
     ]
     
     for faculty_data in faculties_data:
+        # Find department by code
+        dept = db.query(Department).filter(Department.code == faculty_data["dept"]).first()
         faculty = Faculty(
             name=faculty_data["name"],
             email=faculty_data["email"],
-            password=pwd_context.hash("password123"),  # Default password
+            password=pwd_context.hash("faculty123"),  # Default password
             phone=faculty_data["phone"],
-            image_url=f"/static/images/{faculty_data['image']}",
-            linkedin_url=faculty_data["linkedin"],
-            github_url=faculty_data["github"],
-            department=faculty_data["dept"],
+            image=faculty_data["image"],
+            linkedin=faculty_data["linkedin"],
+            github=faculty_data["github"],
+            department_id=dept.id if dept else None,
             experience=faculty_data["experience"],
-            c_experience=faculty_data["c_exp"],
-            py_experience=faculty_data["py_exp"],
-            research_area=faculty_data["research"],
+            c_exp=faculty_data["c_exp"],
+            py_exp=faculty_data["py_exp"],
+            research=faculty_data["research"],
             personal_email=faculty_data["personal_email"]
         )
         db.add(faculty)
@@ -658,8 +660,7 @@ def init_database():
             department_id=dept_map[entry["dept_code"]],
             day=entry["day"],
             period=entry["period"],
-            subject_code="24UCS271",
-            subject_name="C Programming",
+            subject="C Programming",
             class_type=entry["class_type"]
         )
         db.add(timetable)
