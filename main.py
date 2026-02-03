@@ -616,6 +616,31 @@ class DashboardStats(BaseModel):
     qualification_rate: float
 
 
+class TodayClassResponse(BaseModel):
+    period: int
+    start_time: str
+    end_time: str
+    display_time: str
+    faculty_id: int
+    faculty_name: str
+    department: str
+    has_upload: bool
+    is_qualified: Optional[bool] = None
+    upload_filename: Optional[str] = None
+
+
+class TodayStatsResponse(BaseModel):
+    total_classes: int
+    faculty_with_uploads: int
+    qualified_uploads: int
+    pending_uploads: int
+
+
+class TodayDataResponse(BaseModel):
+    classes: List[TodayClassResponse]
+    stats: TodayStatsResponse
+
+
 def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     """Verify admin JWT token"""
     token = credentials.credentials
@@ -776,6 +801,83 @@ def get_departments(db: Session = Depends(get_db)):
     """Get all departments"""
     departments = db.query(Department).all()
     return [{"id": d.id, "name": d.name, "code": d.code} for d in departments]
+
+
+@app.get("/api/admin/today-classes", response_model=TodayDataResponse)
+def get_today_classes(
+    date: str,
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Get today's classes with faculty upload status"""
+    try:
+        # Parse the date
+        target_date = datetime.strptime(date, "%Y-%m-%d").date()
+        
+        # Get day of the week (Monday, Tuesday, etc.)
+        day_name = target_date.strftime('%A')
+        
+        # Get today's scheduled classes from timetable
+        scheduled_classes = db.query(TimetableEntry).filter(
+            TimetableEntry.day == day_name
+        ).order_by(TimetableEntry.period).all()
+        
+        # Get today's uploads
+        today_uploads = db.query(VideoUpload).filter(
+            VideoUpload.upload_date >= target_date,
+            VideoUpload.upload_date < target_date + timedelta(days=1)
+        ).all()
+        
+        # Create a map of faculty uploads for today
+        upload_map = {}
+        for upload in today_uploads:
+            key = f"{upload.faculty_id}_{upload.matched_period}"
+            upload_map[key] = upload
+        
+        # Get period timings
+        periods = {p.period: p for p in db.query(PeriodTiming).all()}
+        
+        # Build today's classes based on actual schedule
+        today_classes = []
+        for schedule in scheduled_classes:
+            if schedule.faculty_id and schedule.period in periods:
+                period_info = periods[schedule.period]
+                key = f"{schedule.faculty_id}_{schedule.period}"
+                upload = upload_map.get(key)
+                
+                class_data = TodayClassResponse(
+                    period=schedule.period,
+                    start_time=period_info.start_time,
+                    end_time=period_info.end_time,
+                    display_time=period_info.display_time,
+                    faculty_id=schedule.faculty.id,
+                    faculty_name=schedule.faculty.name,
+                    department=schedule.faculty.department.code if schedule.faculty.department else "N/A",
+                    has_upload=upload is not None,
+                    is_qualified=upload.is_qualified if upload else None,
+                    upload_filename=upload.filename if upload else None
+                )
+                today_classes.append(class_data)
+        
+        # Calculate stats based on actual scheduled classes
+        total_classes = len(scheduled_classes)
+        faculty_with_uploads = len(set(upload.faculty_id for upload in today_uploads))
+        qualified_uploads = sum(1 for upload in today_uploads if upload.is_qualified)
+        pending_uploads = total_classes - len(today_uploads)
+        
+        stats = TodayStatsResponse(
+            total_classes=total_classes,
+            faculty_with_uploads=faculty_with_uploads,
+            qualified_uploads=qualified_uploads,
+            pending_uploads=pending_uploads
+        )
+        
+        return TodayDataResponse(classes=today_classes, stats=stats)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch today's data: {str(e)}")
 
 
 if __name__ == "__main__":

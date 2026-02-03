@@ -1,83 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Loader2,
   Shield,
-  Users,
-  FileVideo,
   CheckCircle,
   XCircle,
-  TrendingUp,
-  Search,
-  Download,
   Clock,
   RefreshCw,
-  BarChart3
+  Calendar,
+  User
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-interface DashboardStats {
-  total_uploads: number;
-  qualified_uploads: number;
-  not_qualified_uploads: number;
-  total_faculties: number;
-  active_faculties: number;
-  qualification_rate: number;
-}
-
-interface Upload {
-  id: number;
-  filename: string;
-  file_size: number | null;
-  duration_seconds: number | null;
-  video_start_time: string | null;
-  video_end_time: string | null;
-  resolution: string | null;
-  upload_date: string;
-  is_qualified: boolean;
-  matched_period: number | null;
-  validation_message: string | null;
+interface TodayClass {
+  period: number;
+  start_time: string;
+  end_time: string;
+  display_time: string;
   faculty_id: number;
   faculty_name: string;
-  faculty_email: string;
-  department: string | null;
+  department: string;
+  subject?: string;
+  class_type?: string;
+  has_upload: boolean;
+  is_qualified: boolean | null;
+  upload_filename?: string;
 }
 
-interface Faculty {
-  id: number;
-  name: string;
-  email: string;
-  department: string | null;
-  phone: string | null;
-  total_uploads: number;
+interface TodayStats {
+  total_classes: number;
+  faculty_with_uploads: number;
   qualified_uploads: number;
-  not_qualified_uploads: number;
-}
-
-interface Department {
-  id: number;
-  name: string;
-  code: string;
+  pending_uploads: number;
 }
 
 export default function ManagePage() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'uploads' | 'faculties'>('overview');
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [uploads, setUploads] = useState<Upload[]>([]);
-  const [faculties, setFaculties] = useState<Faculty[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [todayClasses, setTodayClasses] = useState<TodayClass[]>([]);
+  const [stats, setStats] = useState<TodayStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
-  
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [departmentFilter, setDepartmentFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     autoLogin();
@@ -99,27 +64,17 @@ export default function ManagePage() {
       if (response.ok) {
         const data = await response.json();
         setAdminToken(data.access_token);
-        fetchData(data.access_token);
+        fetchTodayData(data.access_token);
       } else {
         throw new Error('Auto-login failed');
       }
     } catch (err) {
-      setError('Failed to authenticate');
+      setError('Failed to authenticate with admin credentials');
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (adminToken && activeTab === 'uploads') {
-      fetchUploads();
-    }
-  }, [statusFilter, departmentFilter, adminToken]);
-
-  const getAuthHeaders = () => {
-    return adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {};
-  };
-
-  const fetchData = async (token?: string) => {
+  const fetchTodayData = async (token?: string) => {
     const authToken = token || adminToken;
     if (!authToken) return;
     
@@ -127,119 +82,77 @@ export default function ManagePage() {
     setError(null);
     try {
       const headers = { 'Authorization': `Bearer ${authToken}` };
-      const [statsRes, uploadsRes, facultiesRes, deptsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/admin/dashboard`, { headers }),
-        fetch(`${API_BASE_URL}/api/admin/uploads`, { headers }),
-        fetch(`${API_BASE_URL}/api/admin/faculties`, { headers }),
-        fetch(`${API_BASE_URL}/api/admin/departments`)
-      ]);
-
-      if (!statsRes.ok || !uploadsRes.ok || !facultiesRes.ok) {
-        throw new Error('Failed to fetch data');
+      
+      // Get today's date
+      const today = new Date().toISOString().split('T')[0];
+      const url = `${API_BASE_URL}/api/admin/today-classes?date=${today}`;
+      
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch today's data: ${response.status} - ${errorData}`);
       }
 
-      const [statsData, uploadsData, facultiesData, deptsData] = await Promise.all([
-        statsRes.json(),
-        uploadsRes.json(),
-        facultiesRes.json(),
-        deptsRes.json()
-      ]);
-
-      setStats(statsData);
-      setUploads(uploadsData);
-      setFaculties(facultiesData);
-      setDepartments(deptsData);
+      const data = await response.json();
+      setTodayClasses(data.classes || []);
+      setStats(data.stats || { total_classes: 0, faculty_with_uploads: 0, qualified_uploads: 0, pending_uploads: 0 });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      setError(err instanceof Error ? err.message : 'Failed to load today\'s data');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchUploads = async () => {
-    if (!adminToken) return;
+  const getCurrentTime = () => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes(); // Convert to minutes since midnight
+  };
+
+  const timeToMinutes = (timeStr: string) => {
+    // Handle AM/PM format like "08:45 AM"
+    const [time, period] = timeStr.split(' ');
+    const [hours, minutes] = time.split(':').map(Number);
     
-    try {
-      let url = `${API_BASE_URL}/api/admin/uploads?`;
-      if (statusFilter !== 'all') {
-        url += `status_filter=${statusFilter}&`;
-      }
-      if (departmentFilter !== 'all') {
-        url += `department=${departmentFilter}&`;
-      }
-      
-      const response = await fetch(url, { headers: getAuthHeaders() });
-      if (response.ok) {
-        const data = await response.json();
-        setUploads(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch uploads:', err);
+    let adjustedHours = hours;
+    if (period === 'PM' && hours !== 12) {
+      adjustedHours += 12;
+    } else if (period === 'AM' && hours === 12) {
+      adjustedHours = 0;
     }
-  };
-
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return 'N/A';
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const formatDuration = (seconds: number | null) => {
-    if (!seconds) return 'N/A';
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    const parts = [];
-    if (h > 0) parts.push(`${h}h`);
-    if (m > 0) parts.push(`${m}m`);
-    parts.push(`${s}s`);
-    return parts.join(' ');
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const filteredUploads = uploads.filter(upload => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      upload.filename.toLowerCase().includes(query) ||
-      upload.faculty_name.toLowerCase().includes(query) ||
-      upload.faculty_email.toLowerCase().includes(query) ||
-      (upload.department && upload.department.toLowerCase().includes(query))
-    );
-  });
-
-  const exportToCSV = () => {
-    const headers = ['Faculty', 'Department', 'Filename', 'Duration', 'Upload Date', 'Status', 'Period'];
-    const rows = filteredUploads.map(u => [
-      u.faculty_name,
-      u.department || 'N/A',
-      u.filename,
-      formatDuration(u.duration_seconds),
-      formatDate(u.upload_date),
-      u.is_qualified ? 'Qualified' : 'Not Qualified',
-      u.matched_period ? `Period ${u.matched_period}` : 'N/A'
-    ]);
     
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `uploads_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    return adjustedHours * 60 + minutes;
+  };
+
+  // Use useMemo to categorize classes when todayClasses changes
+  const { ended, ongoing, upcoming } = useMemo(() => {
+    const currentTime = getCurrentTime();
+    
+    const ended = todayClasses.filter(classItem => {
+      const endTime = timeToMinutes(classItem.end_time);
+      return endTime < currentTime;
+    });
+
+    const ongoing = todayClasses.filter(classItem => {
+      const startTime = timeToMinutes(classItem.start_time);
+      const endTime = timeToMinutes(classItem.end_time);
+      return startTime <= currentTime && currentTime <= endTime;
+    });
+
+    const upcoming = todayClasses.filter(classItem => {
+      const startTime = timeToMinutes(classItem.start_time);
+      return startTime > currentTime;
+    });
+
+    return { ended, ongoing, upcoming };
+  }, [todayClasses]); // Recalculate when todayClasses changes
+
+  const getTodayDate = () => {
+    return new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   };
 
   if (loading) {
@@ -247,7 +160,7 @@ export default function ManagePage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading dashboard...</p>
+          <p className="text-muted-foreground">Loading today's classes...</p>
         </div>
       </div>
     );
@@ -264,45 +177,19 @@ export default function ManagePage() {
             </div>
             <div>
               <h1 className="text-xl font-bold">
-                <span className="text-primary">Meta</span>View Management
+                <span className="text-primary">Today's</span> Classes
               </h1>
-              <p className="text-xs text-muted-foreground">Dashboard</p>
+              <p className="text-xs text-muted-foreground">{getTodayDate()}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => fetchData()}>
+            <Button variant="ghost" size="sm" onClick={() => fetchTodayData()}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
           </div>
         </div>
       </header>
-
-      {/* Tab Navigation */}
-      <div className="border-b border-border bg-card/50">
-        <div className="max-w-7xl mx-auto px-4">
-          <nav className="flex gap-1">
-            {[
-              { id: 'overview', label: 'Overview', icon: BarChart3 },
-              { id: 'uploads', label: 'All Uploads', icon: FileVideo },
-              { id: 'faculties', label: 'Faculties', icon: Users }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </div>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
@@ -312,327 +199,372 @@ export default function ManagePage() {
           </Alert>
         )}
 
-        {/* Overview Tab */}
-        {activeTab === 'overview' && stats && (
-          <div className="space-y-6">
-            {/* Stats Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Uploads</p>
-                      <p className="text-3xl font-bold">{stats.total_uploads}</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <FileVideo className="w-6 h-6 text-blue-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Qualified</p>
-                      <p className="text-3xl font-bold text-green-500">{stats.qualified_uploads}</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <CheckCircle className="w-6 h-6 text-green-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Not Qualified</p>
-                      <p className="text-3xl font-bold text-red-500">{stats.not_qualified_uploads}</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                      <XCircle className="w-6 h-6 text-red-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Qualification Rate</p>
-                      <p className="text-3xl font-bold text-purple-500">{stats.qualification_rate}%</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
-                      <TrendingUp className="w-6 h-6 text-purple-500" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Faculty Stats */}
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-primary" />
-                    Faculty Overview
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Total Faculties</span>
-                      <span className="text-xl font-bold">{stats.total_faculties}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Active (uploaded videos)</span>
-                      <span className="text-xl font-bold text-green-500">{stats.active_faculties}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded-lg">
-                      <span className="text-sm text-muted-foreground">Inactive</span>
-                      <span className="text-xl font-bold text-muted-foreground">
-                        {stats.total_faculties - stats.active_faculties}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-primary" />
-                    Recent Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {uploads.length === 0 ? (
-                    <p className="text-center py-8 text-muted-foreground">No uploads yet</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {uploads.slice(0, 5).map(upload => (
-                        <div key={upload.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/30">
-                          {upload.is_qualified ? (
-                            <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
-                          ) : (
-                            <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{upload.faculty_name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{upload.filename}</p>
-                          </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatDate(upload.upload_date).split(',')[0]}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
-
-        {/* Uploads Tab */}
-        {activeTab === 'uploads' && (
-          <div className="space-y-4">
-            {/* Filters */}
-            <Card>
+        {/* Today's Stats */}
+        {stats && (
+          <div className="grid gap-4 md:grid-cols-4 mb-8">
+            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
               <CardContent className="pt-6">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search by faculty, filename, or department..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Classes</p>
+                    <p className="text-3xl font-bold">{stats.total_classes}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="qualified">Qualified</option>
-                      <option value="not_qualified">Not Qualified</option>
-                    </select>
-                    <select
-                      value={departmentFilter}
-                      onChange={(e) => setDepartmentFilter(e.target.value)}
-                      className="px-3 py-2 rounded-md border border-input bg-background text-sm"
-                    >
-                      <option value="all">All Departments</option>
-                      {departments.map(dept => (
-                        <option key={dept.id} value={dept.code}>{dept.code}</option>
-                      ))}
-                    </select>
-                    <Button variant="outline" size="sm" onClick={exportToCSV}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
-                    </Button>
+                  <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-blue-500" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Uploads Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileVideo className="w-5 h-5 text-primary" />
-                    Video Uploads
-                  </span>
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {filteredUploads.length} records
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {filteredUploads.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FileVideo className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                    <p className="text-muted-foreground">No uploads found</p>
+            <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Faculty Uploaded</p>
+                    <p className="text-3xl font-bold text-green-500">{stats.faculty_with_uploads}</p>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">STATUS</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">FACULTY</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground hidden md:table-cell">DEPT</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">FILENAME</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground hidden lg:table-cell">DURATION</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground hidden lg:table-cell">PERIOD</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-muted-foreground">DATE</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredUploads.map(upload => (
-                          <tr key={upload.id} className="border-b border-border/50 hover:bg-muted/30">
-                            <td className="py-3 px-2">
-                              {upload.is_qualified ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">
-                                  <CheckCircle className="w-3 h-3" />
-                                  <span className="hidden sm:inline">Qualified</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-red-500/20 text-red-400">
-                                  <XCircle className="w-3 h-3" />
-                                  <span className="hidden sm:inline">Failed</span>
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 px-2">
-                              <div>
-                                <p className="font-medium text-sm">{upload.faculty_name}</p>
-                                <p className="text-xs text-muted-foreground">{upload.faculty_email}</p>
-                              </div>
-                            </td>
-                            <td className="py-3 px-2 hidden md:table-cell">
-                              <span className="px-2 py-1 rounded bg-muted text-xs">{upload.department || 'N/A'}</span>
-                            </td>
-                            <td className="py-3 px-2">
-                              <p className="text-sm truncate max-w-[200px]" title={upload.filename}>
-                                {upload.filename}
-                              </p>
-                              <p className="text-xs text-muted-foreground">{upload.resolution || 'N/A'}</p>
-                            </td>
-                            <td className="py-3 px-2 text-sm hidden lg:table-cell">
-                              {formatDuration(upload.duration_seconds)}
-                            </td>
-                            <td className="py-3 px-2 text-sm hidden lg:table-cell">
-                              {upload.matched_period ? (
-                                <span className="px-2 py-1 rounded bg-primary/20 text-primary text-xs">
-                                  Period {upload.matched_period}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-2 text-xs text-muted-foreground whitespace-nowrap">
-                              {formatDate(upload.upload_date)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <User className="w-6 h-6 text-green-500" />
                   </div>
-                )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Qualified</p>
+                    <p className="text-3xl font-bold text-emerald-500">{stats.qualified_uploads}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                    <CheckCircle className="w-6 h-6 text-emerald-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending</p>
+                    <p className="text-3xl font-bold text-amber-500">{stats.pending_uploads}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <Clock className="w-6 h-6 text-amber-500" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* Faculties Tab */}
-        {activeTab === 'faculties' && (
+        {/* Faculty Classes by Status */}
+        <div className="space-y-8">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Calendar className="w-6 h-6 text-primary" />
+            Today's Class Status
+          </h2>
+
+          {/* Ongoing Classes */}
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-primary" />
-                  Faculty Members
-                </CardTitle>
-                <CardDescription>
-                  Overview of all faculty members and their upload statistics
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {faculties.map(faculty => (
-                    <Card key={faculty.id} className="bg-muted/20">
-                      <CardContent className="pt-6">
-                        <div className="flex items-start gap-4">
-                          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg font-bold text-primary">
-                              {faculty.name.charAt(0)}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold truncate">{faculty.name}</h3>
-                            <p className="text-xs text-muted-foreground truncate">{faculty.email}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="px-2 py-0.5 rounded bg-muted text-xs">
-                                {faculty.department || 'N/A'}
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <h3 className="text-xl font-semibold text-green-600">Currently Going On</h3>
+              <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">
+                {ongoing.length} classes
+              </span>
+            </div>
+            
+            {ongoing.length === 0 ? (
+              <Card>
+                <CardContent className="pt-8 pb-8 text-center">
+                  <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-muted-foreground">No classes currently in session</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {ongoing.map((classItem) => (
+                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-green-50 border-green-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-bold text-green-600">
+                                {classItem.faculty_name.charAt(0)}
                               </span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate">{classItem.faculty_name}</p>
+                              <p className="text-xs text-muted-foreground font-normal">{classItem.department}</p>
+                            </div>
+                          </CardTitle>
+                        </div>
+                        <div className="flex-shrink-0 ml-2">
+                          {classItem.has_upload ? (
+                            classItem.is_qualified ? (
+                              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <CheckCircle className="w-5 h-5 text-green-500" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                                <XCircle className="w-5 h-5 text-red-500" />
+                              </div>
+                            )
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                              <Clock className="w-5 h-5 text-amber-500" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-3">
+                        {/* Period Information */}
+                        <div className="p-3 bg-green-100/50 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">Period {classItem.period}</p>
+                              <p className="text-xs text-muted-foreground">{classItem.display_time}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-green-600 font-medium">LIVE NOW</p>
+                              <p className="text-xs text-muted-foreground">
+                                {classItem.start_time} - {classItem.end_time}
+                              </p>
                             </div>
                           </div>
                         </div>
-                        
-                        <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border">
-                          <div className="text-center">
-                            <p className="text-lg font-bold">{faculty.total_uploads}</p>
-                            <p className="text-xs text-muted-foreground">Total</p>
+
+                        {/* Upload Status */}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Upload Status:</span>
+                          {classItem.has_upload ? (
+                            <div className="flex items-center gap-1">
+                              {classItem.is_qualified ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                  <span className="text-green-500 font-medium">Qualified</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="w-4 h-4 text-red-500" />
+                                  <span className="text-red-500 font-medium">Not Qualified</span>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-4 h-4 text-amber-500" />
+                              <span className="text-amber-500 font-medium">Pending</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Filename if available */}
+                        {classItem.upload_filename && (
+                          <div className="text-xs text-muted-foreground p-2 bg-muted/20 rounded">
+                            <span className="font-medium">File:</span> {classItem.upload_filename}
                           </div>
-                          <div className="text-center">
-                            <p className="text-lg font-bold text-green-500">{faculty.qualified_uploads}</p>
-                            <p className="text-xs text-muted-foreground">Qualified</p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-lg font-bold text-red-500">{faculty.not_qualified_uploads}</p>
-                            <p className="text-xs text-muted-foreground">Failed</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Upcoming Classes */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <h3 className="text-xl font-semibold text-blue-600">Will Be</h3>
+              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm">
+                {upcoming.length} classes
+              </span>
+            </div>
+            
+            {upcoming.length === 0 ? (
+              <Card>
+                <CardContent className="pt-8 pb-8 text-center">
+                  <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-muted-foreground">No more classes scheduled for today</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {upcoming.map((classItem) => (
+                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-blue-50 border-blue-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-bold text-blue-600">
+                                {classItem.faculty_name.charAt(0)}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate">{classItem.faculty_name}</p>
+                              <p className="text-xs text-muted-foreground font-normal">{classItem.department}</p>
+                            </div>
+                          </CardTitle>
+                        </div>
+                        <div className="flex-shrink-0 ml-2">
+                          {classItem.has_upload ? (
+                            classItem.is_qualified ? (
+                              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <CheckCircle className="w-5 h-5 text-green-500" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+                                <XCircle className="w-5 h-5 text-red-500" />
+                              </div>
+                            )
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                              <Clock className="w-5 h-5 text-amber-500" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-3">
+                        {/* Period Information */}
+                        <div className="p-3 bg-blue-100/50 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">Period {classItem.period}</p>
+                              <p className="text-xs text-muted-foreground">{classItem.display_time}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-blue-600 font-medium">UPCOMING</p>
+                              <p className="text-xs text-muted-foreground">
+                                {classItem.start_time} - {classItem.end_time}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+
+                        {/* Upload Status */}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Upload Status:</span>
+                          {classItem.has_upload ? (
+                            <div className="flex items-center gap-1">
+                              {classItem.is_qualified ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                  <span className="text-green-500 font-medium">Ready</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="w-4 h-4 text-red-500" />
+                                  <span className="text-red-500 font-medium">Not Qualified</span>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-4 h-4 text-amber-500" />
+                              <span className="text-amber-500 font-medium">Not Uploaded</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Filename if available */}
+                        {classItem.upload_filename && (
+                          <div className="text-xs text-muted-foreground p-2 bg-muted/20 rounded">
+                            <span className="font-medium">File:</span> {classItem.upload_filename}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Ended Classes */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+              <h3 className="text-xl font-semibold text-gray-600">Ended</h3>
+              <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-sm">
+                {ended.length} classes
+              </span>
+            </div>
+            
+            {ended.length === 0 ? (
+              <Card>
+                <CardContent className="pt-8 pb-8 text-center">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-muted-foreground">No classes have ended yet today</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {ended.map((classItem) => (
+                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-gray-50 border-gray-200">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-sm flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center flex-shrink-0">
+                              <span className="text-xs font-bold text-gray-600">
+                                {classItem.faculty_name.charAt(0)}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm">{classItem.faculty_name}</p>
+                              <p className="text-xs text-muted-foreground font-normal">{classItem.department}</p>
+                            </div>
+                          </CardTitle>
+                        </div>
+                        <div className="flex-shrink-0 ml-2">
+                          {classItem.has_upload ? (
+                            classItem.is_qualified ? (
+                              <CheckCircle className="w-5 h-5 text-green-500" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-red-500" />
+                            )
+                          ) : (
+                            <XCircle className="w-5 h-5 text-gray-400" />
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-2">
+                        <div className="p-2 bg-gray-100/50 rounded text-xs">
+                          <div className="flex justify-between">
+                            <span>Period {classItem.period}</span>
+                            <span className="text-gray-500">ENDED</span>
+                          </div>
+                        </div>
+                        <div className="text-xs">
+                          {classItem.has_upload ? (
+                            <span className={classItem.is_qualified ? "text-green-600" : "text-red-600"}>
+                              {classItem.is_qualified ? "✓ Completed" : "✗ Failed"}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">No Upload</span>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </main>
     </div>
   );
