@@ -28,6 +28,7 @@ interface TodayClass {
   has_upload: boolean;
   is_qualified: boolean | null;
   upload_filename?: string;
+  validation_message?: string;
 }
 
 interface TodayStats {
@@ -371,6 +372,13 @@ export default function ManagePage() {
                             <span className="font-medium">File:</span> {classItem.upload_filename}
                           </div>
                         )}
+
+                        {/* Validation Message / Failure Reason */}
+                        {classItem.has_upload && classItem.validation_message && (
+                          <div className={`text-xs p-2 rounded ${classItem.is_qualified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            <span className="font-medium">Reason:</span> {classItem.validation_message}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -483,6 +491,13 @@ export default function ManagePage() {
                             <span className="font-medium">File:</span> {classItem.upload_filename}
                           </div>
                         )}
+
+                        {/* Validation Message / Failure Reason */}
+                        {classItem.has_upload && classItem.validation_message && (
+                          <div className={`text-xs p-2 rounded ${classItem.is_qualified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            <span className="font-medium">Reason:</span> {classItem.validation_message}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -557,6 +572,13 @@ export default function ManagePage() {
                             <span className="text-gray-500">No Upload</span>
                           )}
                         </div>
+
+                        {/* Validation Message / Failure Reason */}
+                        {classItem.has_upload && !classItem.is_qualified && classItem.validation_message && (
+                          <div className="text-xs p-2 rounded bg-red-100 text-red-700">
+                            <span className="font-medium">Reason:</span> {classItem.validation_message}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

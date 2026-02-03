@@ -803,6 +803,7 @@ class TodayClassResponse(BaseModel):
     has_upload: bool
     is_qualified: Optional[bool] = None
     upload_filename: Optional[str] = None
+    validation_message: Optional[str] = None
 
 
 class TodayStatsResponse(BaseModel):
@@ -1031,7 +1032,8 @@ def get_today_classes(
                     department=schedule.faculty.department.code if schedule.faculty.department else "N/A",
                     has_upload=upload is not None,
                     is_qualified=upload.is_qualified if upload else None,
-                    upload_filename=upload.filename if upload else None
+                    upload_filename=upload.filename if upload else None,
+                    validation_message=upload.validation_message if upload else None
                 )
                 today_classes.append(class_data)
         
