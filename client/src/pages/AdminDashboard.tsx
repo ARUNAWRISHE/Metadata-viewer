@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation, useRoute } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -82,7 +82,8 @@ function getAdminAuth() {
   return null;
 }
 
-function getAdminHeaders(): HeadersInit {
+function getAdminHeaders(skipAuth = false): HeadersInit {
+  if (skipAuth) return {};
   const auth = getAdminAuth();
   if (auth?.token) {
     return { 'Authorization': `Bearer ${auth.token}` };
@@ -92,6 +93,8 @@ function getAdminHeaders(): HeadersInit {
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
+  const [match] = useRoute('/manage');
+  const isManageRoute = !!match;
   const [activeTab, setActiveTab] = useState<'overview' | 'uploads' | 'faculties'>('overview');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
@@ -108,15 +111,16 @@ export default function AdminDashboard() {
   const adminAuth = getAdminAuth();
 
   useEffect(() => {
-    if (!adminAuth) {
+    // Skip auth check if accessed via /manage route
+    if (!isManageRoute && !adminAuth) {
       setLocation('/admin');
       return;
     }
     fetchData();
-  }, []);
+  }, [isManageRoute]);
 
   useEffect(() => {
-    if (adminAuth && activeTab === 'uploads') {
+    if ((adminAuth || isManageRoute) && activeTab === 'uploads') {
       fetchUploads();
     }
   }, [statusFilter, departmentFilter]);
@@ -126,14 +130,14 @@ export default function AdminDashboard() {
     setError(null);
     try {
       const [statsRes, uploadsRes, facultiesRes, deptsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/admin/dashboard`, { headers: getAdminHeaders() }),
-        fetch(`${API_BASE_URL}/api/admin/uploads`, { headers: getAdminHeaders() }),
-        fetch(`${API_BASE_URL}/api/admin/faculties`, { headers: getAdminHeaders() }),
+        fetch(`${API_BASE_URL}/api/admin/dashboard`, { headers: getAdminHeaders(isManageRoute) }),
+        fetch(`${API_BASE_URL}/api/admin/uploads`, { headers: getAdminHeaders(isManageRoute) }),
+        fetch(`${API_BASE_URL}/api/admin/faculties`, { headers: getAdminHeaders(isManageRoute) }),
         fetch(`${API_BASE_URL}/api/admin/departments`)
       ]);
 
       if (!statsRes.ok || !uploadsRes.ok || !facultiesRes.ok) {
-        if (statsRes.status === 401 || uploadsRes.status === 401 || facultiesRes.status === 401) {
+        if (!isManageRoute && (statsRes.status === 401 || uploadsRes.status === 401 || facultiesRes.status === 401)) {
           localStorage.removeItem('adminAuth');
           setLocation('/admin');
           return;
@@ -169,7 +173,7 @@ export default function AdminDashboard() {
         url += `department=${departmentFilter}&`;
       }
       
-      const response = await fetch(url, { headers: getAdminHeaders() });
+      const response = await fetch(url, { headers: getAdminHeaders(isManageRoute) });
       if (response.ok) {
         const data = await response.json();
         setUploads(data);
@@ -180,8 +184,10 @@ export default function AdminDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('adminAuth');
-    setLocation('/admin');
+    if (!isManageRoute) {
+      localStorage.removeItem('adminAuth');
+      setLocation('/admin');
+    }
   };
 
   const formatFileSize = (bytes: number | null) => {

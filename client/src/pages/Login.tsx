@@ -111,13 +111,10 @@ export default function LoginPage() {
           </CardContent>
         </Card>
 
-        <div className="text-center mt-6 space-y-2">
+        <div className="text-center mt-6">
           <p className="text-sm text-muted-foreground">
             Video Metadata Inspector & Period Validation System
           </p>
-          <a href="/admin" className="text-sm text-primary hover:underline">
-            Admin Portal →
-          </a>
         </div>
       </div>
     </div>
