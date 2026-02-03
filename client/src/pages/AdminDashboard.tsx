@@ -534,14 +534,15 @@ export default function AdminDashboard() {
                           <th className="text-left py-3 px-2 text-xs font-medium text-black/60">FACULTY</th>
                           <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden md:table-cell">DEPT</th>
                           <th className="text-left py-3 px-2 text-xs font-medium text-black/60">FILENAME</th>
-                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden lg:table-cell">DURATION</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden lg:table-cell">VIDEO TIME</th>
                           <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden lg:table-cell">PERIOD</th>
+                          <th className="text-left py-3 px-2 text-xs font-medium text-black/60 hidden xl:table-cell">VALIDATION</th>
                           <th className="text-left py-3 px-2 text-xs font-medium text-black/60">DATE</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredUploads.map(upload => (
-                          <tr key={upload.id} className="border-b border-blue-50 hover:bg-blue-50">
+                          <tr key={upload.id} className={`border-b border-blue-50 hover:bg-blue-50 ${!upload.is_qualified ? 'bg-red-50/30' : ''}`}>
                             <td className="py-3 px-2">
                               {upload.is_qualified ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-600">
@@ -549,7 +550,7 @@ export default function AdminDashboard() {
                                   <span className="hidden sm:inline">Qualified</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-400">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-red-100 text-red-600">
                                   <XCircle className="w-3 h-3" />
                                   <span className="hidden sm:inline">Failed</span>
                                 </span>
@@ -571,7 +572,16 @@ export default function AdminDashboard() {
                               <p className="text-xs text-black/60">{upload.resolution || 'N/A'}</p>
                             </td>
                             <td className="py-3 px-2 text-sm text-black hidden lg:table-cell">
-                              {formatDuration(upload.duration_seconds)}
+                              <div className="text-xs">
+                                {upload.video_start_time ? (
+                                  <>
+                                    <p className="text-black">Start: {upload.video_start_time}</p>
+                                    <p className="text-black/60">End: {upload.video_end_time || 'N/A'}</p>
+                                  </>
+                                ) : (
+                                  <span className="text-black/40">No time data</span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3 px-2 text-sm hidden lg:table-cell">
                               {upload.matched_period ? (
@@ -580,6 +590,19 @@ export default function AdminDashboard() {
                                 </span>
                               ) : (
                                 <span className="text-black/40">—</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-2 text-xs hidden xl:table-cell max-w-[300px]">
+                              {upload.is_qualified ? (
+                                <p className="text-blue-600 truncate" title={upload.validation_message || ''}>
+                                  {upload.validation_message || 'Qualified'}
+                                </p>
+                              ) : (
+                                <div className="bg-red-50 border border-red-200 rounded p-2">
+                                  <p className="text-red-600 font-medium text-xs whitespace-normal">
+                                    {upload.validation_message || 'No validation info'}
+                                  </p>
+                                </div>
                               )}
                             </td>
                             <td className="py-3 px-2 text-xs text-black/60 whitespace-nowrap">

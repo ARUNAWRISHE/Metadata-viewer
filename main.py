@@ -219,19 +219,33 @@ def extract_video_metadata(file_path: str) -> dict:
         return None
 
 
-def validate_video_timing(video_start_time: str, video_end_time: str, duration_seconds: int, db: Session) -> dict:
+def validate_video_timing(video_start_time: str, video_end_time: str, duration_seconds: int, db: Session, target_period: int = None) -> dict:
     """
-    Validate if the video timing falls within any period timing.
-    Returns qualification status and matched period.
+    Validate if the video timing falls within a specific period timing.
+    If target_period is provided, only validates against that period.
+    Returns qualification status, matched period, and detailed timing info.
     """
-    period_timings = db.query(PeriodTiming).order_by(PeriodTiming.period).all()
+    if target_period:
+        period_timing = db.query(PeriodTiming).filter(PeriodTiming.period == target_period).first()
+        if not period_timing:
+            return {
+                "is_qualified": False,
+                "matched_period": None,
+                "matched_period_time": None,
+                "message": f"Period {target_period} not found in the system.",
+                "timing_details": None
+            }
+        period_timings = [period_timing]
+    else:
+        period_timings = db.query(PeriodTiming).order_by(PeriodTiming.period).all()
     
     if not video_start_time:
         return {
             "is_qualified": False,
             "matched_period": None,
             "matched_period_time": None,
-            "message": "Could not extract video creation time. Please ensure the video has metadata."
+            "message": "Could not extract video creation time. Please ensure the video has metadata.",
+            "timing_details": None
         }
     
     try:
@@ -249,11 +263,11 @@ def validate_video_timing(video_start_time: str, video_end_time: str, duration_s
                 "is_qualified": False,
                 "matched_period": None,
                 "matched_period_time": None,
-                "message": f"Could not parse video start time: {video_start_time}"
+                "message": f"Could not parse video start time: {video_start_time}",
+                "timing_details": None
             }
         
         # Convert from UTC to IST (Indian Standard Time = UTC + 5:30)
-        # Video metadata stores time in UTC, but period timings are in IST
         IST_OFFSET = timedelta(hours=5, minutes=30)
         video_start = video_start + IST_OFFSET
         
@@ -264,7 +278,7 @@ def validate_video_timing(video_start_time: str, video_end_time: str, duration_s
         video_start_time_only = video_start.time()
         video_end_time_only = video_end.time()
         
-        # Check against each period
+        # Check against each period (or the specific target period)
         for period in period_timings:
             period_start = parse_time_string(period.start_time)
             period_end = parse_time_string(period.end_time)
@@ -275,25 +289,100 @@ def validate_video_timing(video_start_time: str, video_end_time: str, duration_s
             period_start_time = period_start.time()
             period_end_time = period_end.time()
             
-            # Check if video timing overlaps with period timing
-            # Video is qualified if it starts at or after period start AND ends at or before period end
-            # OR if there's significant overlap (at least 50% of period duration)
+            # Calculate timing details
+            video_start_minutes = video_start_time_only.hour * 60 + video_start_time_only.minute
+            video_end_minutes = video_end_time_only.hour * 60 + video_end_time_only.minute
+            period_start_minutes = period_start_time.hour * 60 + period_start_time.minute
+            period_end_minutes = period_end_time.hour * 60 + period_end_time.minute
             
-            if video_start_time_only >= period_start_time and video_end_time_only <= period_end_time:
+            start_delay_minutes = video_start_minutes - period_start_minutes
+            end_diff_minutes = period_end_minutes - video_end_minutes
+            
+            timing_details = {
+                "video_start": video_start.strftime("%I:%M:%S %p"),
+                "video_end": video_end.strftime("%I:%M:%S %p"),
+                "period_start": period.start_time,
+                "period_end": period.end_time,
+                "start_delay_minutes": start_delay_minutes,
+                "end_difference_minutes": end_diff_minutes,
+                "duration_minutes": int(duration_seconds / 60)
+            }
+            
+            # Validation logic:
+            # 1. Video must start at or after period start time
+            # 2. Video must end at or before period end time
+            # 3. Allow up to 15 minutes late start as "acceptable delay"
+            
+            is_within_period = (video_start_time_only >= period_start_time and 
+                               video_end_time_only <= period_end_time)
+            
+            started_late_but_acceptable = (start_delay_minutes > 0 and start_delay_minutes <= 15 and 
+                                           video_end_time_only <= period_end_time)
+            
+            started_very_late = start_delay_minutes > 15
+            
+            ended_after_period = video_end_time_only > period_end_time
+            
+            started_before_period = video_start_time_only < period_start_time
+            
+            if is_within_period:
+                if start_delay_minutes == 0:
+                    message = f"✅ QUALIFIED! Video started exactly on time at {video_start.strftime('%I:%M %p')} and ended at {video_end.strftime('%I:%M %p')} within Period {period.period} ({period.display_time})"
+                else:
+                    message = f"✅ QUALIFIED! Video started at {video_start.strftime('%I:%M %p')} ({start_delay_minutes} min after period start) and ended at {video_end.strftime('%I:%M %p')} within Period {period.period} ({period.display_time})"
+                
                 return {
                     "is_qualified": True,
                     "matched_period": period.period,
                     "matched_period_time": period.display_time,
-                    "message": f"✅ Video is QUALIFIED! Recording falls within Period {period.period} ({period.display_time})"
+                    "message": message,
+                    "timing_details": timing_details
                 }
             
-            # Check for partial overlap (video starts within period)
-            if period_start_time <= video_start_time_only <= period_end_time:
+            elif started_late_but_acceptable:
+                message = f"✅ QUALIFIED (Late Start)! Video started {start_delay_minutes} minutes late at {video_start.strftime('%I:%M %p')} (Period starts at {period.start_time}). Ended at {video_end.strftime('%I:%M %p')} within Period {period.period}."
+                
                 return {
                     "is_qualified": True,
                     "matched_period": period.period,
                     "matched_period_time": period.display_time,
-                    "message": f"✅ Video is QUALIFIED! Recording started during Period {period.period} ({period.display_time})"
+                    "message": message,
+                    "timing_details": timing_details
+                }
+            
+            elif started_very_late:
+                message = f"❌ NOT QUALIFIED! Video started {start_delay_minutes} minutes late at {video_start.strftime('%I:%M %p')} (Period starts at {period.start_time}). Maximum allowed delay is 15 minutes."
+                
+                return {
+                    "is_qualified": False,
+                    "matched_period": period.period,
+                    "matched_period_time": period.display_time,
+                    "message": message,
+                    "timing_details": timing_details
+                }
+            
+            elif started_before_period:
+                minutes_early = abs(start_delay_minutes)
+                message = f"❌ NOT QUALIFIED! Video started {minutes_early} minutes BEFORE period start at {video_start.strftime('%I:%M %p')} (Period starts at {period.start_time})."
+                
+                return {
+                    "is_qualified": False,
+                    "matched_period": period.period,
+                    "matched_period_time": period.display_time,
+                    "message": message,
+                    "timing_details": timing_details
+                }
+            
+            elif ended_after_period:
+                minutes_over = abs(end_diff_minutes)
+                message = f"❌ NOT QUALIFIED! Video ended {minutes_over} minutes AFTER period end at {video_end.strftime('%I:%M %p')} (Period ends at {period.end_time})."
+                
+                return {
+                    "is_qualified": False,
+                    "matched_period": period.period,
+                    "matched_period_time": period.display_time,
+                    "message": message,
+                    "timing_details": timing_details
                 }
         
         # No match found
@@ -301,7 +390,8 @@ def validate_video_timing(video_start_time: str, video_end_time: str, duration_s
             "is_qualified": False,
             "matched_period": None,
             "matched_period_time": None,
-            "message": f"❌ Video NOT QUALIFIED. Recording time ({video_start.strftime('%I:%M %p')} - {video_end.strftime('%I:%M %p')}) does not match any period timing."
+            "message": f"❌ Video NOT QUALIFIED. Recording time ({video_start.strftime('%I:%M %p')} - {video_end.strftime('%I:%M %p')}) does not match any period timing.",
+            "timing_details": None
         }
         
     except Exception as e:
@@ -309,7 +399,8 @@ def validate_video_timing(video_start_time: str, video_end_time: str, duration_s
             "is_qualified": False,
             "matched_period": None,
             "matched_period_time": None,
-            "message": f"Error validating timing: {str(e)}"
+            "message": f"Error validating timing: {str(e)}",
+            "timing_details": None
         }
 
 
@@ -439,12 +530,14 @@ def get_faculty_schedule(
 @app.post("/api/video/analyze", response_model=VideoAnalysisResponse)
 async def analyze_video(
     video: UploadFile = File(...),
+    period: int = Form(None),
     current_faculty: Faculty = Depends(get_current_faculty),
     db: Session = Depends(get_db)
 ):
     """
     Upload and analyze a video file.
-    Extracts metadata and validates against period timings.
+    Extracts metadata and validates against the specified period timing.
+    If period is provided, validates only against that specific period.
     """
     # Validate file type
     allowed_extensions = [".mp4", ".avi", ".mov", ".mkv", ".webm", ".wmv", ".flv"]
@@ -502,7 +595,8 @@ async def analyze_video(
                 pass
         
         # Validate against period timings (pass UTC time, conversion happens inside)
-        validation_result = validate_video_timing(video_start_time_utc, video_end_time, duration_seconds, db)
+        # If period is specified, validate only against that period
+        validation_result = validate_video_timing(video_start_time_utc, video_end_time, duration_seconds, db, target_period=period)
         
         # Save upload record
         upload_record = VideoUpload(

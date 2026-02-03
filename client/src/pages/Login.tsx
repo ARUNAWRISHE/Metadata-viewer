@@ -32,27 +32,28 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background grid place-items-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold">
-            <span className="text-primary">Meta</span><span className="text-foreground">View</span>
+          <h1 className="text-4xl font-extrabold flex justify-center">
+            <img src="/kite-logo-C9Mih3XS.png" alt="Kite Logo" className="h-14 w-auto" />
+            {/* <span className="text-primary">Meta</span><span className="text-foreground">View</span> */}
           </h1>
           <p className="text-muted-foreground mt-2">Faculty Video Validation System</p>
         </div>
 
-        <Card className="border-border">
+        <Card className="border-border grid grid-rows-[auto_1fr]">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl flex items-center gap-2">
-              <LogIn className="w-6 h-6 text-primary" />
+              <LogIn className="w-4 h- text-primary" />
               Faculty Login
             </CardTitle>
             <CardDescription>
               Enter your credentials to access the video validation system
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <CardContent className="grid gap-4">
+            <form onSubmit={handleSubmit} className="grid gap-4">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -89,9 +90,9 @@ export default function LoginPage() {
                   required
                   disabled={loading}
                 />
-                <p className="text-xs text-muted-foreground">
+                {/* <p className="text-xs text-muted-foreground">
                   Default password: <code className="bg-muted px-1 rounded">faculty123</code>
-                </p>
+                </p> */}
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
@@ -112,9 +113,9 @@ export default function LoginPage() {
         </Card>
 
         <div className="text-center mt-6">
-          <p className="text-sm text-muted-foreground">
+          {/* <p className="text-sm text-muted-foreground">
             Video Metadata Inspector & Period Validation System
-          </p>
+          </p> */}
         </div>
       </div>
     </div>
