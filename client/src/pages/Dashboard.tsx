@@ -160,9 +160,9 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">
-              <span className="text-white">Meta</span><span className="text-black">View</span>
+              <img src="/kite-logo-C9Mih3XS.png" alt="Kite Logo" className="h-12 w-auto" />
             </h1>
-            <p className="text-sm text-black/70">Faculty Video Validation</p>
+            {/* <p className="text-sm text-black/70"><span className="text-white">Meta</span><span className="text-black">View</span></p> */}
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
@@ -170,7 +170,7 @@ export default function Dashboard() {
                 <User className="w-4 h-4 text-black" />
                 <span className="font-medium text-black">{user?.faculty_name}</span>
               </div>
-              <span className="text-sm text-black/70">{user?.department}</span>
+              {/* <span className="text-sm text-black/70">{user?.department}</span> */}
             </div>
             <Button variant="outline" size="sm" onClick={logout} className="bg-white text-black border-white hover:bg-blue-100">
               <LogOut className="w-4 h-4 mr-2" />
