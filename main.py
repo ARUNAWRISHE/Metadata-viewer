@@ -4,8 +4,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pydantic import BaseModel
+import bcrypt
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 import os
 import json
@@ -35,7 +35,6 @@ SECRET_KEY = "metaview-secret-key-change-in-production-2024"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
@@ -54,14 +53,13 @@ class TokenResponse(BaseModel):
 
 
 class FacultyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     name: str
     email: str
     department: Optional[str]
     phone: Optional[str]
-    
-    class Config:
-        from_attributes = True
 
 
 class VideoAnalysisResponse(BaseModel):
@@ -81,16 +79,17 @@ class VideoAnalysisResponse(BaseModel):
 
 
 class PeriodTimingResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     period: int
     start_time: str
     end_time: str
     display_time: str
-    
-    class Config:
-        from_attributes = True
 
 
 class VideoHistoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     filename: str
     duration_seconds: Optional[int]
@@ -100,18 +99,16 @@ class VideoHistoryResponse(BaseModel):
     is_qualified: bool
     matched_period: Optional[int]
     validation_message: Optional[str]
-    
-    class Config:
-        from_attributes = True
 
 
 # Helper Functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -382,6 +379,56 @@ def get_period_timings(db: Session = Depends(get_db)):
     """Get all period timings"""
     periods = db.query(PeriodTiming).order_by(PeriodTiming.period).all()
     return periods
+
+
+@app.get("/api/faculty/schedule")
+def get_faculty_schedule(
+    current_faculty: Faculty = Depends(get_current_faculty),
+    db: Session = Depends(get_db)
+):
+    """Get the current faculty's timetable/schedule"""
+    # Get all timetable entries for this faculty
+    timetable_entries = db.query(TimetableEntry).filter(
+        TimetableEntry.faculty_id == current_faculty.id
+    ).all()
+    
+    # Get all period timings
+    period_timings = db.query(PeriodTiming).order_by(PeriodTiming.period).all()
+    
+    # Organize by day and period
+    schedule_by_day = {}
+    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    
+    for day in days_order:
+        schedule_by_day[day] = []
+    
+    for entry in timetable_entries:
+        if entry.day not in schedule_by_day:
+            schedule_by_day[entry.day] = []
+        
+        # Find corresponding period timing
+        period_info = next((p for p in period_timings if p.period == entry.period), None)
+        
+        schedule_by_day[entry.day].append({
+            "period": entry.period,
+            "start_time": period_info.start_time if period_info else "N/A",
+            "end_time": period_info.end_time if period_info else "N/A",
+            "display_time": period_info.display_time if period_info else "N/A",
+            "subject": entry.subject,
+            "class_type": entry.class_type,
+            "department": entry.department.code if entry.department else "N/A"
+        })
+    
+    # Sort periods within each day
+    for day in schedule_by_day:
+        schedule_by_day[day].sort(key=lambda x: x["period"])
+    
+    return {
+        "faculty_id": current_faculty.id,
+        "faculty_name": current_faculty.name,
+        "department": current_faculty.department.code if current_faculty.department else "N/A",
+        "schedule": schedule_by_day
+    }
 
 
 @app.post("/api/video/analyze", response_model=VideoAnalysisResponse)

@@ -57,6 +57,23 @@ interface VideoHistory {
   validation_message: string | null;
 }
 
+interface ScheduleEntry {
+  period: number;
+  start_time: string;
+  end_time: string;
+  display_time: string;
+  subject: string;
+  class_type: string;
+  department: string;
+}
+
+interface FacultySchedule {
+  faculty_id: number;
+  faculty_name: string;
+  department: string;
+  schedule: { [day: string]: ScheduleEntry[] };
+}
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [file, setFile] = useState<File | null>(null);
@@ -66,10 +83,13 @@ export default function Dashboard() {
   const [periods, setPeriods] = useState<PeriodTiming[]>([]);
   const [history, setHistory] = useState<VideoHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [schedule, setSchedule] = useState<FacultySchedule | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   useEffect(() => {
     fetchPeriods();
     fetchHistory();
+    fetchSchedule();
   }, []);
 
   const fetchPeriods = async () => {
@@ -98,6 +118,23 @@ export default function Dashboard() {
       console.error('Failed to fetch history:', err);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchSchedule = async () => {
+    setScheduleLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/faculty/schedule`, {
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSchedule(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch schedule:', err);
+    } finally {
+      setScheduleLoading(false);
     }
   };
 
@@ -187,7 +224,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         <Tabs defaultValue="upload" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-4">
             <TabsTrigger value="upload" className="flex items-center gap-2">
               <Upload className="w-4 h-4" />
               Upload
@@ -195,6 +232,10 @@ export default function Dashboard() {
             <TabsTrigger value="periods" className="flex items-center gap-2">
               <Clock className="w-4 h-4" />
               Periods
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Schedule
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-2">
               <History className="w-4 h-4" />
@@ -391,6 +432,79 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Schedule Tab */}
+          <TabsContent value="schedule">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  My Teaching Schedule
+                </CardTitle>
+                <CardDescription>
+                  Your period-wise schedule for the week
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {scheduleLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  </div>
+                ) : schedule && Object.keys(schedule.schedule).length > 0 ? (
+                  <div className="space-y-6">
+                    {Object.entries(schedule.schedule).map(([day, entries]) => (
+                      entries.length > 0 && (
+                        <div key={day}>
+                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-primary" />
+                            {day}
+                          </h3>
+                          <div className="grid gap-2">
+                            {entries.map((entry: ScheduleEntry) => (
+                              <div
+                                key={`${day}-${entry.period}`}
+                                className="p-4 border rounded-lg bg-card hover:bg-muted/50 transition-colors"
+                              >
+                                <div className="grid md:grid-cols-5 gap-4">
+                                  <div>
+                                    <dt className="text-xs font-semibold text-muted-foreground uppercase">Period</dt>
+                                    <dd className="text-lg font-bold text-primary">{entry.period}</dd>
+                                  </div>
+                                  <div>
+                                    <dt className="text-xs font-semibold text-muted-foreground uppercase">Time</dt>
+                                    <dd className="font-medium">{entry.display_time}</dd>
+                                  </div>
+                                  <div>
+                                    <dt className="text-xs font-semibold text-muted-foreground uppercase">Subject</dt>
+                                    <dd className="font-medium">{entry.subject || 'N/A'}</dd>
+                                  </div>
+                                  <div>
+                                    <dt className="text-xs font-semibold text-muted-foreground uppercase">Type</dt>
+                                    <dd className="inline-block px-2 py-1 bg-primary/20 text-primary text-sm rounded font-medium">
+                                      {entry.class_type || 'N/A'}
+                                    </dd>
+                                  </div>
+                                  <div>
+                                    <dt className="text-xs font-semibold text-muted-foreground uppercase">Department</dt>
+                                    <dd className="font-medium">{entry.department}</dd>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Calendar className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No schedule assigned yet</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
