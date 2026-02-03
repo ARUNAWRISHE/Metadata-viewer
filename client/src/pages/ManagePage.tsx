@@ -10,7 +10,8 @@ import {
   Clock,
   RefreshCw,
   Calendar,
-  User
+  User,
+  ExternalLink
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -29,6 +30,7 @@ interface TodayClass {
   is_qualified: boolean | null;
   upload_filename?: string;
   validation_message?: string;
+  drive_url?: string;
 }
 
 interface TodayStats {
@@ -367,10 +369,23 @@ export default function ManagePage() {
                           )}
                         </div>
 
-                        {/* Filename if available */}
+                        {/* Filename and Drive Link */}
                         {classItem.upload_filename && (
                           <div className="text-xs text-muted-foreground p-2 bg-muted/20 rounded">
-                            <span className="font-medium">File:</span> {classItem.upload_filename}
+                            <div className="flex items-center justify-between">
+                              <span><span className="font-medium">File:</span> {classItem.upload_filename}</span>
+                              {classItem.drive_url && (
+                                <a
+                                  href={classItem.drive_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 ml-2"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>View</span>
+                                </a>
+                              )}
+                            </div>
                           </div>
                         )}
 
@@ -486,10 +501,23 @@ export default function ManagePage() {
                           )}
                         </div>
 
-                        {/* Filename if available */}
+                        {/* Filename and Drive Link */}
                         {classItem.upload_filename && (
                           <div className="text-xs text-muted-foreground p-2 bg-muted/20 rounded">
-                            <span className="font-medium">File:</span> {classItem.upload_filename}
+                            <div className="flex items-center justify-between">
+                              <span><span className="font-medium">File:</span> {classItem.upload_filename}</span>
+                              {classItem.drive_url && (
+                                <a
+                                  href={classItem.drive_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 ml-2"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>View</span>
+                                </a>
+                              )}
+                            </div>
                           </div>
                         )}
 
@@ -564,13 +592,24 @@ export default function ManagePage() {
                             <span className="text-gray-500">ENDED</span>
                           </div>
                         </div>
-                        <div className="text-xs">
+                        <div className="text-xs flex items-center justify-between">
                           {classItem.has_upload ? (
                             <span className={classItem.is_qualified ? "text-green-600" : "text-red-600"}>
                               {classItem.is_qualified ? "✓ Completed" : "✗ Failed"}
                             </span>
                           ) : (
                             <span className="text-gray-500">No Upload</span>
+                          )}
+                          {classItem.drive_url && (
+                            <a
+                              href={classItem.drive_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>View</span>
+                            </a>
                           )}
                         </div>
 

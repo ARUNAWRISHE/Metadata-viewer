@@ -108,5 +108,6 @@ class VideoUpload(Base):
     is_qualified = Column(Boolean, default=False)
     matched_period = Column(Integer)  # Which period it matched
     validation_message = Column(Text)
+    drive_url = Column(String(500))  # Google Drive shareable link
     
     faculty = relationship("Faculty", back_populates="video_uploads")

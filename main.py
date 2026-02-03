@@ -11,9 +11,15 @@ import os
 import json
 import subprocess
 import tempfile
+import logging
 
 from database import get_db, engine
 from models import Base, Faculty, PeriodTiming, VideoUpload, Department, TimetableEntry, Admin
+from drive_service import upload_to_drive, check_drive_connection
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -76,6 +82,7 @@ class VideoAnalysisResponse(BaseModel):
     matched_period: Optional[int]
     matched_period_time: Optional[str]
     validation_message: str
+    drive_url: Optional[str] = None
 
 
 class PeriodTimingResponse(BaseModel):
@@ -598,6 +605,20 @@ async def analyze_video(
         # If period is specified, validate only against that period
         validation_result = validate_video_timing(video_start_time_utc, video_end_time, duration_seconds, db, target_period=period)
         
+        # Upload to Google Drive (always upload regardless of qualification status)
+        drive_url = None
+        success, web_link, error = upload_to_drive(
+            file_path=tmp_path,
+            filename=video.filename,
+            faculty_name=current_faculty.name,
+            period=validation_result["matched_period"]
+        )
+        if success:
+            drive_url = web_link
+            logger.info(f"Video uploaded to Drive: {web_link}")
+        else:
+            logger.warning(f"Failed to upload to Drive: {error}")
+        
         # Save upload record
         upload_record = VideoUpload(
             faculty_id=current_faculty.id,
@@ -611,7 +632,8 @@ async def analyze_video(
             audio_codec=metadata.get("audio_codec"),
             is_qualified=validation_result["is_qualified"],
             matched_period=validation_result["matched_period"],
-            validation_message=validation_result["message"]
+            validation_message=validation_result["message"],
+            drive_url=drive_url
         )
         db.add(upload_record)
         db.commit()
@@ -629,7 +651,8 @@ async def analyze_video(
             is_qualified=validation_result["is_qualified"],
             matched_period=validation_result["matched_period"],
             matched_period_time=validation_result["matched_period_time"],
-            validation_message=validation_result["message"]
+            validation_message=validation_result["message"],
+            drive_url=drive_url
         )
         
     finally:
@@ -873,6 +896,16 @@ def admin_login(request: AdminLoginRequest, db: Session = Depends(get_db)):
         username=admin.username,
         role="admin"
     )
+
+
+@app.get("/api/admin/drive-status")
+def get_drive_status(admin: Admin = Depends(get_current_admin)):
+    """Check Google Drive connection status (admin only)"""
+    is_connected, message = check_drive_connection()
+    return {
+        "connected": is_connected,
+        "message": message
+    }
 
 
 @app.get("/api/admin/dashboard", response_model=DashboardStats)
