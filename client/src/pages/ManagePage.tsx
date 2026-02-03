@@ -72,6 +72,7 @@ export default function ManagePage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminToken, setAdminToken] = useState<string | null>(null);
   
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -79,23 +80,57 @@ export default function ManagePage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    fetchData();
+    autoLogin();
   }, []);
 
+  const autoLogin = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          username: 'mail-admin@gmail.com', 
+          password: 'admin123' 
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAdminToken(data.access_token);
+        fetchData(data.access_token);
+      } else {
+        throw new Error('Auto-login failed');
+      }
+    } catch (err) {
+      setError('Failed to authenticate');
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (activeTab === 'uploads') {
+    if (adminToken && activeTab === 'uploads') {
       fetchUploads();
     }
-  }, [statusFilter, departmentFilter]);
+  }, [statusFilter, departmentFilter, adminToken]);
 
-  const fetchData = async () => {
+  const getAuthHeaders = () => {
+    return adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {};
+  };
+
+  const fetchData = async (token?: string) => {
+    const authToken = token || adminToken;
+    if (!authToken) return;
+    
     setLoading(true);
     setError(null);
     try {
+      const headers = { 'Authorization': `Bearer ${authToken}` };
       const [statsRes, uploadsRes, facultiesRes, deptsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/admin/dashboard`),
-        fetch(`${API_BASE_URL}/api/admin/uploads`),
-        fetch(`${API_BASE_URL}/api/admin/faculties`),
+        fetch(`${API_BASE_URL}/api/admin/dashboard`, { headers }),
+        fetch(`${API_BASE_URL}/api/admin/uploads`, { headers }),
+        fetch(`${API_BASE_URL}/api/admin/faculties`, { headers }),
         fetch(`${API_BASE_URL}/api/admin/departments`)
       ]);
 
@@ -122,6 +157,8 @@ export default function ManagePage() {
   };
 
   const fetchUploads = async () => {
+    if (!adminToken) return;
+    
     try {
       let url = `${API_BASE_URL}/api/admin/uploads?`;
       if (statusFilter !== 'all') {
@@ -131,7 +168,7 @@ export default function ManagePage() {
         url += `department=${departmentFilter}&`;
       }
       
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: getAuthHeaders() });
       if (response.ok) {
         const data = await response.json();
         setUploads(data);
@@ -233,7 +270,7 @@ export default function ManagePage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={fetchData}>
+            <Button variant="ghost" size="sm" onClick={() => fetchData()}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
