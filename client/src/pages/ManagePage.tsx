@@ -12,7 +12,10 @@ import {
   RefreshCw,
   Calendar,
   User,
-  ExternalLink
+  ExternalLink,
+  Filter,
+  Building,
+  Hash
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -48,6 +51,19 @@ export default function ManagePage() {
   const [error, setError] = useState<string | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedPeriods, setSelectedPeriods] = useState<number[]>([]);
+
+  // Get unique departments and periods from classes
+  const departments = useMemo(() => {
+    const depts = [...new Set(todayClasses.map(c => c.department))].filter(Boolean).sort();
+    return depts;
+  }, [todayClasses]);
+
+  const periods = useMemo(() => {
+    const periodList = [...new Set(todayClasses.map(c => c.period))].sort((a, b) => a - b);
+    return periodList;
+  }, [todayClasses]);
 
   useEffect(() => {
     autoLogin();
@@ -135,28 +151,50 @@ export default function ManagePage() {
     return adjustedHours * 60 + minutes;
   };
 
-  // Use useMemo to categorize classes when todayClasses changes
+  // Filter classes based on selected departments and periods
+  const filteredClasses = useMemo(() => {
+    return todayClasses.filter(classItem => {
+      const deptMatch = selectedDepartments.length === 0 || selectedDepartments.includes(classItem.department);
+      const periodMatch = selectedPeriods.length === 0 || selectedPeriods.includes(classItem.period);
+      return deptMatch && periodMatch;
+    });
+  }, [todayClasses, selectedDepartments, selectedPeriods]);
+
+  // Use useMemo to categorize classes based on selected date
   const { ended, ongoing, upcoming } = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // If viewing a past date, all classes are "ended"
+    if (selectedDate < today) {
+      return { ended: filteredClasses, ongoing: [], upcoming: [] };
+    }
+    
+    // If viewing a future date, all classes are "upcoming" (will be)
+    if (selectedDate > today) {
+      return { ended: [], ongoing: [], upcoming: filteredClasses };
+    }
+    
+    // If viewing today, use current time to categorize
     const currentTime = getCurrentTime();
     
-    const ended = todayClasses.filter(classItem => {
+    const ended = filteredClasses.filter(classItem => {
       const endTime = timeToMinutes(classItem.end_time);
       return endTime < currentTime;
     });
 
-    const ongoing = todayClasses.filter(classItem => {
+    const ongoing = filteredClasses.filter(classItem => {
       const startTime = timeToMinutes(classItem.start_time);
       const endTime = timeToMinutes(classItem.end_time);
       return startTime <= currentTime && currentTime <= endTime;
     });
 
-    const upcoming = todayClasses.filter(classItem => {
+    const upcoming = filteredClasses.filter(classItem => {
       const startTime = timeToMinutes(classItem.start_time);
       return startTime > currentTime;
     });
 
     return { ended, ongoing, upcoming };
-  }, [todayClasses]); // Recalculate when todayClasses changes
+  }, [filteredClasses, selectedDate]); // Recalculate when filteredClasses or selectedDate changes
 
   const getDisplayDate = () => {
     const date = new Date(selectedDate + 'T00:00:00');
@@ -170,6 +208,23 @@ export default function ManagePage() {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedDate(e.target.value);
+  };
+
+  const toggleDepartment = (dept: string) => {
+    setSelectedDepartments(prev => 
+      prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+    );
+  };
+
+  const togglePeriod = (period: number) => {
+    setSelectedPeriods(prev => 
+      prev.includes(period) ? prev.filter(p => p !== period) : [...prev, period]
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedDepartments([]);
+    setSelectedPeriods([]);
   };
 
   if (loading) {
@@ -213,6 +268,79 @@ export default function ManagePage() {
           </div>
         </div>
       </header>
+
+      {/* Filters Section */}
+      <div className="border-b border-border bg-card/50">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Department Filter */}
+            <div className="flex items-center gap-2">
+              <Building className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Department:</span>
+              <div className="flex flex-wrap gap-1">
+                {departments.length === 0 ? (
+                  <span className="text-xs text-muted-foreground">No departments</span>
+                ) : (
+                  departments.map(dept => (
+                    <button
+                      key={dept}
+                      onClick={() => toggleDepartment(dept)}
+                      className={`px-2 py-1 text-xs rounded-full border transition-colors ${
+                        selectedDepartments.includes(dept)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background border-border hover:bg-muted'
+                      }`}
+                    >
+                      {dept}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="h-6 w-px bg-border hidden sm:block" />
+
+            {/* Period Filter */}
+            <div className="flex items-center gap-2">
+              <Hash className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Period:</span>
+              <div className="flex flex-wrap gap-1">
+                {periods.length === 0 ? (
+                  <span className="text-xs text-muted-foreground">No periods</span>
+                ) : (
+                  periods.map(period => (
+                    <button
+                      key={period}
+                      onClick={() => togglePeriod(period)}
+                      className={`w-7 h-7 text-xs rounded-full border transition-colors ${
+                        selectedPeriods.includes(period)
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background border-border hover:bg-muted'
+                      }`}
+                    >
+                      {period}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Clear Filters */}
+            {(selectedDepartments.length > 0 || selectedPeriods.length > 0) && (
+              <>
+                <div className="h-6 w-px bg-border hidden sm:block" />
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs">
+                  <XCircle className="w-3 h-3 mr-1" />
+                  Clear Filters
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Showing {filteredClasses.length} of {todayClasses.length} classes
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
@@ -287,10 +415,11 @@ export default function ManagePage() {
         <div className="space-y-8">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Calendar className="w-6 h-6 text-primary" />
-            Today's Class Status
+            {selectedDate === new Date().toISOString().split('T')[0] ? "Today's" : getDisplayDate().split(',')[0] + "'s"} Class Status
           </h2>
 
-          {/* Ongoing Classes */}
+          {/* Ongoing Classes - Only show for today */}
+          {selectedDate === new Date().toISOString().split('T')[0] && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
@@ -421,12 +550,16 @@ export default function ManagePage() {
               </div>
             )}
           </div>
+          )}
 
-          {/* Upcoming Classes */}
+          {/* Upcoming Classes - Show for today and future dates */}
+          {selectedDate >= new Date().toISOString().split('T')[0] && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <h3 className="text-xl font-semibold text-blue-600">Will Be</h3>
+              <h3 className="text-xl font-semibold text-blue-600">
+                {selectedDate > new Date().toISOString().split('T')[0] ? 'Scheduled Classes' : 'Will Be'}
+              </h3>
               <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm">
                 {upcoming.length} classes
               </span>
@@ -553,8 +686,10 @@ export default function ManagePage() {
               </div>
             )}
           </div>
+          )}
 
-          {/* Ended Classes */}
+          {/* Ended Classes - Show for today and past dates */}
+          {selectedDate <= new Date().toISOString().split('T')[0] && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
@@ -568,7 +703,7 @@ export default function ManagePage() {
               <Card>
                 <CardContent className="pt-8 pb-8 text-center">
                   <CheckCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-muted-foreground">No classes have ended yet today</p>
+                  <p className="text-muted-foreground">{selectedDate < new Date().toISOString().split('T')[0] ? 'No classes were scheduled for this day' : 'No classes have ended yet today'}</p>
                 </CardContent>
               </Card>
             ) : (
@@ -645,6 +780,7 @@ export default function ManagePage() {
               </div>
             )}
           </div>
+          )}
         </div>
       </main>
     </div>
