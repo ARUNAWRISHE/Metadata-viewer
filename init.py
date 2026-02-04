@@ -1,6 +1,7 @@
 from database import engine, SessionLocal
 from models import Base, Department, Syllabus, Admin, Faculty, TimetableEntry, PeriodTiming, LabProgram
 import bcrypt
+import json
 
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
@@ -265,6 +266,7 @@ def init_database():
             "email": "r.sathish@kgkite.ac.in",
             "phone": "9791406167",
             "dept": "AIDS-A",
+            "classes": ["AIDS-A"],
             "image": "faculty1.jpg",
             "linkedin": "https://www.linkedin.com/in/sathish-ramanujam-96545313a",
             "github": "https://github.com/Professor-Sathish",
@@ -279,6 +281,7 @@ def init_database():
             "email": "sikkandharbatcha.j@kgkite.ac.in",
             "phone": "9486429598",
             "dept": "AIDS-B",
+            "classes": ["AIDS-B"],
             "image": "faculty2.jpg",
             "linkedin": "https://www.linkedin.com/in/sikkandhar-batcha-j-bb585271",
             "github": "https://github.com/sssbatcha",
@@ -293,6 +296,7 @@ def init_database():
             "email": "raakesh.m@kgkite.ac.in",
             "phone": "9360758406",
             "dept": "AIML-A",
+            "classes": ["AIML-A"],
             "image": None,
             "linkedin": "https://www.linkedin.com/in/raakesh-muthuvel",
             "github": "https://github.com/Raa96",
@@ -307,6 +311,7 @@ def init_database():
             "email": "aruna.r@kgkite.ac.in",
             "phone": "9585458088",
             "dept": "AIML-B",
+            "classes": ["AIML-B"],
             "image": "faculty4.jpg",
             "linkedin": "https://www.linkedin.com/in/aruna-deepa-0957b9201/",
             "github": "https://github.com/arunacse867-design",
@@ -321,6 +326,7 @@ def init_database():
             "email": "janani.s@kgkite.ac.in",
             "phone": "9786282598",
             "dept": "CSE-A",
+            "classes": ["CSE-A"],
             "image": "faculty5.jpg",
             "linkedin": "https://www.linkedin.com/in/janani-s",
             "github": "https://github.com/JANANI441992",
@@ -335,6 +341,7 @@ def init_database():
             "email": "indhumathi.s@kgkite.ac.in",
             "phone": "7708146489",
             "dept": "CSE-B",
+            "classes": ["CSE-B"],
             "image": "faculty6.jpg",
             "linkedin": "https://www.linkedin.com/in/indhumathi-subramaniam-35a770289",
             "github": "https://github.com/IndhumathiSubramaniam",
@@ -349,6 +356,7 @@ def init_database():
             "email": "saranya.sh@kgkite.ac.in",
             "phone": "7339511127",
             "dept": "CSBS",
+            "classes": ["CSBS"],
             "image": "faculty7.jpg",
             "linkedin": "https://www.linkedin.com/in/saranya-prabhakaran-2639a719b",
             "github": "https://github.com/saranyaethvik/saran",
@@ -363,6 +371,7 @@ def init_database():
             "email": "anusha.s@kgkite.ac.in",
             "phone": "8056008866",
             "dept": "CYS",
+            "classes": ["CYS"],
             "image": "faculty8.jpg",
             "linkedin": "",
             "github": "https://github.com/Anusha-1989",
@@ -377,6 +386,7 @@ def init_database():
             "email": "kiruthikaa.r@kgkite.ac.in",
             "phone": "6382754523",
             "dept": "ECE-A",
+            "classes": ["ECE-A"],
             "image": "faculty9.jpg",
             "linkedin": "https://www.linkedin.com/in/kiruthikaa-r-42596a332/",
             "github": "https://github.com/Kiruthikaa06",
@@ -391,6 +401,7 @@ def init_database():
             "email": "janani.r@kgkite.ac.in",
             "phone": "9488762688",
             "dept": "ECE-B",
+            "classes": ["ECE-B"],
             "image": "faculty10.jpg",
             "linkedin": "https://www.linkedin.com/in/janani-ramannachetty-43b892137/",
             "github": "https://github.com/Jananir22",
@@ -405,6 +416,7 @@ def init_database():
             "email": "Venkateshbabu.s@kgkite.ac.in",
             "phone": "9790197267",
             "dept": "IT-A",
+            "classes": ["IT-A"],
             "image": "faculty11.jpg",
             "linkedin": "https://www.linkedin.com/in/venkateshbabusakthinarayanan/",
             "github": "",
@@ -419,6 +431,7 @@ def init_database():
             "email": "dhamayanthi.p@kgkite.ac.in",
             "phone": "8220279253",
             "dept": "IT-B",
+            "classes": ["IT-B"],
             "image": "faculty12.jpg",
             "linkedin": "https://www.linkedin.com/in/dhamayanthi-satishkumar-580135104",
             "github": "https://github.com/Dhamayanthi-ME/Dhamayanthi",
@@ -433,6 +446,7 @@ def init_database():
             "email": "pradeep.g@kgkite.ac.in",
             "phone": "9600018957",
             "dept": "MECH",
+            "classes": ["MECH"],
             "image": "faculty13.jpg",
             "linkedin": "https://www.linkedin.com/in/pradeep-g-b7275b46/",
             "github": "https://github.com/pradeepgkite",
@@ -447,6 +461,7 @@ def init_database():
             "email": "madhan.m@kgkite.ac.in",
             "phone": "8344108003",
             "dept": "RA",
+            "classes": ["RA"],
             "image": "faculty14.jpg",
             "linkedin": "https://www.linkedin.com/in/madhan-m-9a0ba639/",
             "github": "",
@@ -474,7 +489,8 @@ def init_database():
             c_exp=faculty_data["c_exp"],
             py_exp=faculty_data["py_exp"],
             research=faculty_data["research"],
-            personal_email=faculty_data["personal_email"]
+            personal_email=faculty_data["personal_email"],
+            classes=json.dumps(faculty_data.get("classes", []))
         )
         db.add(faculty)
     

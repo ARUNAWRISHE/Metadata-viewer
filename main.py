@@ -66,6 +66,7 @@ class FacultyResponse(BaseModel):
     email: str
     department: Optional[str]
     phone: Optional[str]
+    classes: Optional[List[str]] = None
 
 
 class VideoAnalysisResponse(BaseModel):
@@ -116,6 +117,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+
+def parse_classes(value: Optional[str]) -> Optional[List[str]]:
+    if not value:
+        return None
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else None
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -473,7 +484,8 @@ def get_faculty_profile(current_faculty: Faculty = Depends(get_current_faculty))
         name=current_faculty.name,
         email=current_faculty.email,
         department=current_faculty.department.code if current_faculty.department else None,
-        phone=current_faculty.phone
+        phone=current_faculty.phone,
+        classes=parse_classes(current_faculty.classes)
     )
 
 
@@ -765,7 +777,8 @@ def list_faculties(db: Session = Depends(get_db)):
             "id": f.id,
             "name": f.name,
             "email": f.email,
-            "department": f.department.code if f.department else None
+            "department": f.department.code if f.department else None,
+            "classes": parse_classes(f.classes)
         }
         for f in faculties
     ]
@@ -784,6 +797,10 @@ class AdminTokenResponse(BaseModel):
     admin_id: int
     username: str
     role: str
+
+
+class UpdateFacultyClassesRequest(BaseModel):
+    classes: List[str]
 
 
 class AdminUploadSummary(BaseModel):
@@ -998,12 +1015,55 @@ def get_admin_faculties(admin: Admin = Depends(get_current_admin), db: Session =
             "email": f.email,
             "department": f.department.code if f.department else None,
             "phone": f.phone,
+            "classes": parse_classes(f.classes),
             "total_uploads": upload_count,
             "qualified_uploads": qualified_count,
             "not_qualified_uploads": upload_count - qualified_count
         })
     
     return result
+
+
+@app.patch("/api/admin/faculties/{faculty_id}/classes")
+def update_faculty_classes(
+    faculty_id: int,
+    payload: UpdateFacultyClassesRequest,
+    admin: Admin = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Update classes assigned to a faculty member"""
+    faculty = db.query(Faculty).filter(Faculty.id == faculty_id).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty not found")
+
+    if not isinstance(payload.classes, list):
+        raise HTTPException(status_code=400, detail="Classes must be a list")
+
+    # Validate class codes
+    valid_codes = {d.code for d in db.query(Department).all()}
+    invalid = [code for code in payload.classes if code not in valid_codes]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid class codes: {', '.join(invalid)}")
+
+    faculty.classes = json.dumps(payload.classes)
+
+    # Optionally align department with the primary class
+    if payload.classes:
+        dept = db.query(Department).filter(Department.code == payload.classes[0]).first()
+        if dept:
+            faculty.department_id = dept.id
+
+    db.commit()
+    db.refresh(faculty)
+
+    return {
+        "id": faculty.id,
+        "name": faculty.name,
+        "email": faculty.email,
+        "department": faculty.department.code if faculty.department else None,
+        "phone": faculty.phone,
+        "classes": parse_classes(faculty.classes)
+    }
 
 
 @app.get("/api/admin/departments")
@@ -1055,6 +1115,15 @@ def get_today_classes(
                 key = f"{schedule.faculty_id}_{schedule.period}"
                 upload = upload_map.get(key)
                 
+                department_code = None
+                if schedule.faculty and schedule.faculty.department:
+                    department_code = schedule.faculty.department.code
+                elif schedule.department:
+                    department_code = schedule.department.code
+                else:
+                    classes_list = parse_classes(schedule.faculty.classes) if schedule.faculty else None
+                    department_code = classes_list[0] if classes_list else "N/A"
+
                 class_data = TodayClassResponse(
                     period=schedule.period,
                     start_time=period_info.start_time,
@@ -1062,7 +1131,7 @@ def get_today_classes(
                     display_time=period_info.display_time,
                     faculty_id=schedule.faculty.id,
                     faculty_name=schedule.faculty.name,
-                    department=schedule.faculty.department.code if schedule.faculty.department else "N/A",
+                    department=department_code or "N/A",
                     has_upload=upload is not None,
                     is_qualified=upload.is_qualified if upload else None,
                     upload_filename=upload.filename if upload else None,

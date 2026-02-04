@@ -59,6 +59,7 @@ interface Faculty {
   email: string;
   department: string | null;
   phone: string | null;
+  classes?: string[] | null;
   total_uploads: number;
   qualified_uploads: number;
   not_qualified_uploads: number;
@@ -128,6 +129,8 @@ export default function AdminDashboard() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingFacultyId, setEditingFacultyId] = useState<number | null>(null);
+  const [classEdits, setClassEdits] = useState<Record<number, string>>({});
   
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -223,6 +226,47 @@ export default function AdminDashboard() {
     if (!isManageRoute) {
       localStorage.removeItem('adminAuth');
       setLocation('/admin');
+    }
+  };
+
+  const startEditClasses = (faculty: Faculty) => {
+    const currentClass = faculty.classes?.[0] || faculty.department || '';
+    setClassEdits(prev => ({ ...prev, [faculty.id]: currentClass }));
+    setEditingFacultyId(faculty.id);
+  };
+
+  const cancelEditClasses = () => {
+    setEditingFacultyId(null);
+  };
+
+  const saveClasses = async (facultyId: number) => {
+    const selectedClass = classEdits[facultyId];
+    const classes = selectedClass ? [selectedClass] : [];
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/faculties/${facultyId}/classes`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAdminHeaders(isManageRoute)
+        },
+        body: JSON.stringify({ classes })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to update classes');
+      }
+
+      const updated = await response.json();
+      setFaculties(prev => prev.map(f => (
+        f.id === facultyId
+          ? { ...f, classes: updated.classes, department: updated.department ?? f.department }
+          : f
+      )));
+      setEditingFacultyId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update classes');
     }
   };
 
@@ -781,6 +825,40 @@ export default function AdminDashboard() {
                               <span className="px-2 py-0.5 rounded bg-blue-100 text-xs text-black">
                                 {faculty.department || 'N/A'}
                               </span>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-black/60">Classes:</span>
+                                {faculty.classes && faculty.classes.length > 0 ? (
+                                  faculty.classes.map(cls => (
+                                    <span key={`${faculty.id}-${cls}`} className="px-2 py-0.5 rounded bg-gray-100 text-xs text-black">
+                                      {cls}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="text-xs text-black/40">Not assigned</span>
+                                )}
+                              </div>
+                              {editingFacultyId === faculty.id ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <select
+                                    className="h-8 rounded border border-blue-200 bg-white px-2 text-xs text-black"
+                                    value={classEdits[faculty.id] || ''}
+                                    onChange={(e) => setClassEdits(prev => ({ ...prev, [faculty.id]: e.target.value }))}
+                                  >
+                                    <option value="">Select class</option>
+                                    {departments.map(dept => (
+                                      <option key={dept.code} value={dept.code}>{dept.code}</option>
+                                    ))}
+                                  </select>
+                                  <Button size="sm" onClick={() => saveClasses(faculty.id)}>Save</Button>
+                                  <Button size="sm" variant="outline" onClick={cancelEditClasses}>Cancel</Button>
+                                </div>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => startEditClasses(faculty)}>
+                                  Assign Class
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>

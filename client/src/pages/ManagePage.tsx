@@ -44,6 +44,12 @@ interface TodayStats {
   pending_uploads: number;
 }
 
+interface Department {
+  id: number;
+  name: string;
+  code: string;
+}
+
 export default function ManagePage() {
   const [todayClasses, setTodayClasses] = useState<TodayClass[]>([]);
   const [stats, setStats] = useState<TodayStats | null>(null);
@@ -51,19 +57,19 @@ export default function ManagePage() {
   const [error, setError] = useState<string | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedPeriods, setSelectedPeriods] = useState<number[]>([]);
 
-  // Get unique departments and periods from classes
-  const departments = useMemo(() => {
-    const depts = [...new Set(todayClasses.map(c => c.department))].filter(Boolean).sort();
-    return depts;
-  }, [todayClasses]);
+  // Get department codes (classes) from all departments
+  const classes = useMemo(() => {
+    return allDepartments.map(d => d.code).sort();
+  }, [allDepartments]);
 
+  // Use full period list for filtering options
   const periods = useMemo(() => {
-    const periodList = [...new Set(todayClasses.map(c => c.period))].sort((a, b) => a - b);
-    return periodList;
-  }, [todayClasses]);
+    return [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  }, []);
 
   useEffect(() => {
     autoLogin();
@@ -91,6 +97,7 @@ export default function ManagePage() {
       if (response.ok) {
         const data = await response.json();
         setAdminToken(data.access_token);
+        fetchDepartments();
         fetchTodayData(data.access_token);
       } else {
         throw new Error('Auto-login failed');
@@ -128,6 +135,18 @@ export default function ManagePage() {
       setError(err instanceof Error ? err.message : 'Failed to load today\'s data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/departments`);
+      if (response.ok) {
+        const data = await response.json();
+        setAllDepartments(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch departments:', err);
     }
   };
 
@@ -273,25 +292,25 @@ export default function ManagePage() {
       <div className="border-b border-border bg-card/50">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex flex-wrap items-center gap-4">
-            {/* Department Filter */}
+            {/* Class/Department Filter */}
             <div className="flex items-center gap-2">
               <Building className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Department:</span>
+              <span className="text-sm font-medium text-muted-foreground">Class:</span>
               <div className="flex flex-wrap gap-1">
-                {departments.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">No departments</span>
+                {classes.length === 0 ? (
+                  <span className="text-xs text-muted-foreground">No classes</span>
                 ) : (
-                  departments.map(dept => (
+                  classes.map(cls => (
                     <button
-                      key={dept}
-                      onClick={() => toggleDepartment(dept)}
+                      key={cls}
+                      onClick={() => toggleDepartment(cls)}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
-                        selectedDepartments.includes(dept)
+                        selectedDepartments.includes(cls)
                           ? 'bg-primary text-primary-foreground border-primary'
                           : 'bg-background border-border hover:bg-muted'
                       }`}
                     >
-                      {dept}
+                      {cls}
                     </button>
                   ))
                 )}

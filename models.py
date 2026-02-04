@@ -31,6 +31,7 @@ class Faculty(Base):
     py_exp = Column(String(50))
     research = Column(String(255))
     personal_email = Column(String(100))
+    classes = Column(Text)
     
     department = relationship("Department", back_populates="faculties")
     timetable_entries = relationship("TimetableEntry", back_populates="faculty")
