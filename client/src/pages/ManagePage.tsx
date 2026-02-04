@@ -3,20 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
-import {
-  Loader2,
-  Shield,
-  CheckCircle,
-  XCircle,
-  Clock,
-  RefreshCw,
-  Calendar,
-  User,
-  ExternalLink,
-  Filter,
-  Building,
-  Hash
-} from 'lucide-react';
+ 
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -248,29 +235,25 @@ export default function ManagePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading today's classes...</p>
+          <p className="text-blue-700 font-medium">Loading today's classes...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-white text-black">
       {/* Header */}
-      <header className="border-b border-border bg-card sticky top-0 z-10">
+      <header className="border-b border-blue-700 bg-blue-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-primary" />
-            </div>
             <div>
               <h1 className="text-xl font-bold">
-                <span className="text-primary">Classes</span> Dashboard
+                <span className="text-white">Classes</span> <span className="text-white/90">Dashboard</span>
               </h1>
-              <p className="text-xs text-muted-foreground">{getDisplayDate()}</p>
+              <p className="text-xs text-white/80">{getDisplayDate()}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -278,10 +261,9 @@ export default function ManagePage() {
               type="date"
               value={selectedDate}
               onChange={handleDateChange}
-              className="w-40"
+              className="w-40 border-blue-300 bg-white text-black"
             />
-            <Button variant="ghost" size="sm" onClick={() => fetchTodayData()}>
-              <RefreshCw className="w-4 h-4 mr-2" />
+            <Button variant="outline" size="sm" className="border-white text-white hover:bg-white hover:text-blue-700" onClick={() => fetchTodayData()}>
               Refresh
             </Button>
           </div>
@@ -289,16 +271,15 @@ export default function ManagePage() {
       </header>
 
       {/* Filters Section */}
-      <div className="border-b border-border bg-card/50">
+      <div className="border-b border-blue-200 bg-white">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex flex-wrap items-center gap-4">
             {/* Class/Department Filter */}
             <div className="flex items-center gap-2">
-              <Building className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Class:</span>
+              <span className="text-sm font-medium text-blue-700">Class:</span>
               <div className="flex flex-wrap gap-1">
                 {classes.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">No classes</span>
+                  <span className="text-xs text-blue-600">No classes</span>
                 ) : (
                   classes.map(cls => (
                     <button
@@ -306,8 +287,8 @@ export default function ManagePage() {
                       onClick={() => toggleDepartment(cls)}
                       className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                         selectedDepartments.includes(cls)
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background border-border hover:bg-muted'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white border-blue-200 hover:bg-blue-50'
                       }`}
                     >
                       {cls}
@@ -317,15 +298,14 @@ export default function ManagePage() {
               </div>
             </div>
 
-            <div className="h-6 w-px bg-border hidden sm:block" />
+            <div className="h-6 w-px bg-blue-200 hidden sm:block" />
 
             {/* Period Filter */}
             <div className="flex items-center gap-2">
-              <Hash className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Period:</span>
+              <span className="text-sm font-medium text-blue-700">Period:</span>
               <div className="flex flex-wrap gap-1">
                 {periods.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">No periods</span>
+                  <span className="text-xs text-blue-600">No periods</span>
                 ) : (
                   periods.map(period => (
                     <button
@@ -333,8 +313,8 @@ export default function ManagePage() {
                       onClick={() => togglePeriod(period)}
                       className={`w-7 h-7 text-xs rounded-full border transition-colors ${
                         selectedPeriods.includes(period)
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-background border-border hover:bg-muted'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white border-blue-200 hover:bg-blue-50'
                       }`}
                     >
                       {period}
@@ -347,12 +327,11 @@ export default function ManagePage() {
             {/* Clear Filters */}
             {(selectedDepartments.length > 0 || selectedPeriods.length > 0) && (
               <>
-                <div className="h-6 w-px bg-border hidden sm:block" />
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="text-xs">
-                  <XCircle className="w-3 h-3 mr-1" />
+                <div className="h-6 w-px bg-blue-200 hidden sm:block" />
+                <Button variant="outline" size="sm" onClick={clearFilters} className="text-xs">
                   Clear Filters
                 </Button>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-blue-600">
                   Showing {filteredClasses.length} of {todayClasses.length} classes
                 </span>
               </>
@@ -364,7 +343,7 @@ export default function ManagePage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
         {error && (
-          <Alert variant="destructive" className="mb-6">
+          <Alert className="mb-6 border-blue-200 bg-white">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -372,57 +351,45 @@ export default function ManagePage() {
         {/* Today's Stats */}
         {stats && (
           <div className="grid gap-4 md:grid-cols-4 mb-8">
-            <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+            <Card className="bg-white border-blue-200">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Classes</p>
+                    <p className="text-sm text-blue-700">Total Classes</p>
                     <p className="text-3xl font-bold">{stats.total_classes}</p>
                   </div>
-                  <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border-blue-200">
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-700">Faculty Uploaded</p>
+                    <p className="text-3xl font-bold">{stats.faculty_with_uploads}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+            <Card className="bg-white border-blue-200">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Faculty Uploaded</p>
-                    <p className="text-3xl font-bold text-green-500">{stats.faculty_with_uploads}</p>
-                  </div>
-                  <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                    <User className="w-6 h-6 text-green-500" />
+                    <p className="text-sm text-blue-700">Qualified</p>
+                    <p className="text-3xl font-bold">{stats.qualified_uploads}</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border-emerald-500/20">
+            <Card className="bg-white border-blue-200">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">Qualified</p>
-                    <p className="text-3xl font-bold text-emerald-500">{stats.qualified_uploads}</p>
-                  </div>
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <CheckCircle className="w-6 h-6 text-emerald-500" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 border-amber-500/20">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pending</p>
-                    <p className="text-3xl font-bold text-amber-500">{stats.pending_uploads}</p>
-                  </div>
-                  <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
-                    <Clock className="w-6 h-6 text-amber-500" />
+                    <p className="text-sm text-blue-700">Pending</p>
+                    <p className="text-3xl font-bold ">{stats.pending_uploads}</p>
                   </div>
                 </div>
               </CardContent>
@@ -432,8 +399,7 @@ export default function ManagePage() {
 
         {/* Faculty Classes by Status */}
         <div className="space-y-8">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Calendar className="w-6 h-6 text-primary" />
+          <h2 className="text-2xl font-bold text-black">
             {selectedDate === new Date().toISOString().split('T')[0] ? "Today's" : getDisplayDate().split(',')[0] + "'s"} Class Status
           </h2>
 
@@ -441,9 +407,8 @@ export default function ManagePage() {
           {selectedDate === new Date().toISOString().split('T')[0] && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <h3 className="text-xl font-semibold text-green-600">Currently Going On</h3>
-              <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-sm">
+              <h3 className="text-xl font-semibold text-blue-700">Currently Going On</h3>
+              <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-sm border border-blue-200">
                 {ongoing.length} classes
               </span>
             </div>
@@ -451,60 +416,42 @@ export default function ManagePage() {
             {ongoing.length === 0 ? (
               <Card>
                 <CardContent className="pt-8 pb-8 text-center">
-                  <Clock className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-muted-foreground">No classes currently in session</p>
+                  <p className="text-blue-600">No classes currently in session</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {ongoing.map((classItem) => (
-                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-green-50 border-green-200">
+                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-white border-blue-200">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <CardTitle className="text-lg flex items-center gap-2">
-                            <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                              <span className="text-sm font-bold text-green-600">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-bold text-blue-700">
                                 {classItem.faculty_name.charAt(0)}
                               </span>
                             </div>
                             <div className="min-w-0">
                               <p className="truncate">{classItem.faculty_name}</p>
-                              <p className="text-xs text-muted-foreground font-normal">{classItem.department}</p>
+                              <p className="text-xs text-blue-600 font-normal">{classItem.department}</p>
                             </div>
                           </CardTitle>
-                        </div>
-                        <div className="flex-shrink-0 ml-2">
-                          {classItem.has_upload ? (
-                            classItem.is_qualified ? (
-                              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                                <CheckCircle className="w-5 h-5 text-green-500" />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
-                                <XCircle className="w-5 h-5 text-red-500" />
-                              </div>
-                            )
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
-                              <Clock className="w-5 h-5 text-amber-500" />
-                            </div>
-                          )}
                         </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="space-y-3">
                         {/* Period Information */}
-                        <div className="p-3 bg-green-100/50 rounded-lg">
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium">Period {classItem.period}</p>
-                              <p className="text-xs text-muted-foreground">{classItem.display_time}</p>
+                              <p className="text-xs text-blue-600">{classItem.display_time}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-green-600 font-medium">LIVE NOW</p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-blue-700 font-medium">LIVE NOW</p>
+                              <p className="text-xs text-blue-600">
                                 {classItem.start_time} - {classItem.end_time}
                               </p>
                             </div>
@@ -513,32 +460,19 @@ export default function ManagePage() {
 
                         {/* Upload Status */}
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Upload Status:</span>
+                          <span className="text-black">Upload Status:</span>
                           {classItem.has_upload ? (
-                            <div className="flex items-center gap-1">
-                              {classItem.is_qualified ? (
-                                <>
-                                  <CheckCircle className="w-4 h-4 text-green-500" />
-                                  <span className="text-green-500 font-medium">Qualified</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-4 h-4 text-red-500" />
-                                  <span className="text-red-500 font-medium">Not Qualified</span>
-                                </>
-                              )}
-                            </div>
+                            <span className={classItem.is_qualified ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                              {classItem.is_qualified ? 'Qualified' : 'Not Qualified'}
+                            </span>
                           ) : (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-4 h-4 text-amber-500" />
-                              <span className="text-amber-500 font-medium">Pending</span>
-                            </div>
+                            <span className="text-orange-600 font-medium">Pending</span>
                           )}
                         </div>
 
                         {/* Filename and Drive Link */}
                         {classItem.upload_filename && (
-                          <div className="text-xs text-muted-foreground p-2 bg-muted/20 rounded">
+                          <div className="text-xs text-black p-2 bg-blue-50 rounded border border-blue-200">
                             <div className="flex items-center justify-between">
                               <span><span className="font-medium">File:</span> {classItem.upload_filename}</span>
                               {classItem.drive_url && (
@@ -546,9 +480,8 @@ export default function ManagePage() {
                                   href={classItem.drive_url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 ml-2"
+                                  className="text-blue-700 hover:text-blue-900 ml-2"
                                 >
-                                  <ExternalLink className="w-3 h-3" />
                                   <span>View</span>
                                 </a>
                               )}
@@ -558,7 +491,7 @@ export default function ManagePage() {
 
                         {/* Validation Message / Failure Reason */}
                         {classItem.has_upload && classItem.validation_message && (
-                          <div className={`text-xs p-2 rounded ${classItem.is_qualified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          <div className="text-xs p-2 rounded bg-blue-50 text-black border border-blue-200">
                             <span className="font-medium">Reason:</span> {classItem.validation_message}
                           </div>
                         )}
@@ -575,11 +508,10 @@ export default function ManagePage() {
           {selectedDate >= new Date().toISOString().split('T')[0] && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <h3 className="text-xl font-semibold text-blue-600">
+              <h3 className="text-xl font-semibold text-blue-700">
                 {selectedDate > new Date().toISOString().split('T')[0] ? 'Scheduled Classes' : 'Will Be'}
               </h3>
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm">
+              <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-sm border border-blue-200">
                 {upcoming.length} classes
               </span>
             </div>
@@ -587,60 +519,42 @@ export default function ManagePage() {
             {upcoming.length === 0 ? (
               <Card>
                 <CardContent className="pt-8 pb-8 text-center">
-                  <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-muted-foreground">No more classes scheduled for today</p>
+                  <p className="text-blue-600">No more classes scheduled for today</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {upcoming.map((classItem) => (
-                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-blue-50 border-blue-200">
+                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-white border-blue-200">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <CardTitle className="text-lg flex items-center gap-2">
-                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                              <span className="text-sm font-bold text-blue-600">
+                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-bold text-blue-700">
                                 {classItem.faculty_name.charAt(0)}
                               </span>
                             </div>
                             <div className="min-w-0">
                               <p className="truncate">{classItem.faculty_name}</p>
-                              <p className="text-xs text-muted-foreground font-normal">{classItem.department}</p>
+                              <p className="text-xs text-blue-600 font-normal">{classItem.department}</p>
                             </div>
                           </CardTitle>
-                        </div>
-                        <div className="flex-shrink-0 ml-2">
-                          {classItem.has_upload ? (
-                            classItem.is_qualified ? (
-                              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                                <CheckCircle className="w-5 h-5 text-green-500" />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
-                                <XCircle className="w-5 h-5 text-red-500" />
-                              </div>
-                            )
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
-                              <Clock className="w-5 h-5 text-amber-500" />
-                            </div>
-                          )}
                         </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="space-y-3">
                         {/* Period Information */}
-                        <div className="p-3 bg-blue-100/50 rounded-lg">
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="text-sm font-medium">Period {classItem.period}</p>
-                              <p className="text-xs text-muted-foreground">{classItem.display_time}</p>
+                              <p className="text-xs text-blue-600">{classItem.display_time}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-blue-600 font-medium">UPCOMING</p>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-blue-700 font-medium">UPCOMING</p>
+                              <p className="text-xs text-blue-600">
                                 {classItem.start_time} - {classItem.end_time}
                               </p>
                             </div>
@@ -649,32 +563,19 @@ export default function ManagePage() {
 
                         {/* Upload Status */}
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Upload Status:</span>
+                          <span className="text-black">Upload Status:</span>
                           {classItem.has_upload ? (
-                            <div className="flex items-center gap-1">
-                              {classItem.is_qualified ? (
-                                <>
-                                  <CheckCircle className="w-4 h-4 text-green-500" />
-                                  <span className="text-green-500 font-medium">Ready</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle className="w-4 h-4 text-red-500" />
-                                  <span className="text-red-500 font-medium">Not Qualified</span>
-                                </>
-                              )}
-                            </div>
+                            <span className={classItem.is_qualified ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                              {classItem.is_qualified ? 'Ready' : 'Not Qualified'}
+                            </span>
                           ) : (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-4 h-4 text-amber-500" />
-                              <span className="text-amber-500 font-medium">Not Uploaded</span>
-                            </div>
+                            <span className="text-orange-600 font-medium">Not Uploaded</span>
                           )}
                         </div>
 
                         {/* Filename and Drive Link */}
                         {classItem.upload_filename && (
-                          <div className="text-xs text-muted-foreground p-2 bg-muted/20 rounded">
+                          <div className="text-xs text-black p-2 bg-blue-50 rounded border border-blue-200">
                             <div className="flex items-center justify-between">
                               <span><span className="font-medium">File:</span> {classItem.upload_filename}</span>
                               {classItem.drive_url && (
@@ -682,9 +583,8 @@ export default function ManagePage() {
                                   href={classItem.drive_url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 ml-2"
+                                  className="text-blue-700 hover:text-blue-900 ml-2"
                                 >
-                                  <ExternalLink className="w-3 h-3" />
                                   <span>View</span>
                                 </a>
                               )}
@@ -694,7 +594,7 @@ export default function ManagePage() {
 
                         {/* Validation Message / Failure Reason */}
                         {classItem.has_upload && classItem.validation_message && (
-                          <div className={`text-xs p-2 rounded ${classItem.is_qualified ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          <div className="text-xs p-2 rounded bg-blue-50 text-black border border-blue-200">
                             <span className="font-medium">Reason:</span> {classItem.validation_message}
                           </div>
                         )}
@@ -711,9 +611,8 @@ export default function ManagePage() {
           {selectedDate <= new Date().toISOString().split('T')[0] && (
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-              <h3 className="text-xl font-semibold text-gray-600">Ended</h3>
-              <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-sm">
+              <h3 className="text-xl font-semibold text-blue-700">Ended</h3>
+              <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-full text-sm border border-blue-200">
                 {ended.length} classes
               </span>
             </div>
@@ -721,66 +620,53 @@ export default function ManagePage() {
             {ended.length === 0 ? (
               <Card>
                 <CardContent className="pt-8 pb-8 text-center">
-                  <CheckCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground/50" />
-                  <p className="text-muted-foreground">{selectedDate < new Date().toISOString().split('T')[0] ? 'No classes were scheduled for this day' : 'No classes have ended yet today'}</p>
+                  <p className="text-blue-600">{selectedDate < new Date().toISOString().split('T')[0] ? 'No classes were scheduled for this day' : 'No classes have ended yet today'}</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 {ended.map((classItem) => (
-                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-gray-50 border-gray-200">
+                  <Card key={`${classItem.faculty_id}-${classItem.period}`} className="bg-white border-blue-200">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <CardTitle className="text-sm flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-gray-500/20 flex items-center justify-center flex-shrink-0">
-                              <span className="text-xs font-bold text-gray-600">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                              <span className="text-xs font-bold text-blue-700">
                                 {classItem.faculty_name.charAt(0)}
                               </span>
                             </div>
                             <div className="min-w-0">
                               <p className="truncate text-sm">{classItem.faculty_name}</p>
-                              <p className="text-xs text-muted-foreground font-normal">{classItem.department}</p>
+                              <p className="text-xs text-blue-600 font-normal">{classItem.department}</p>
                             </div>
                           </CardTitle>
-                        </div>
-                        <div className="flex-shrink-0 ml-2">
-                          {classItem.has_upload ? (
-                            classItem.is_qualified ? (
-                              <CheckCircle className="w-5 h-5 text-green-500" />
-                            ) : (
-                              <XCircle className="w-5 h-5 text-red-500" />
-                            )
-                          ) : (
-                            <XCircle className="w-5 h-5 text-gray-400" />
-                          )}
                         </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="space-y-2">
-                        <div className="p-2 bg-gray-100/50 rounded text-xs">
+                        <div className="p-2 bg-blue-50 rounded text-xs border border-blue-200">
                           <div className="flex justify-between">
                             <span>Period {classItem.period}</span>
-                            <span className="text-gray-500">ENDED</span>
+                            <span className="text-blue-600">ENDED</span>
                           </div>
                         </div>
                         <div className="text-xs flex items-center justify-between">
                           {classItem.has_upload ? (
                             <span className={classItem.is_qualified ? "text-green-600" : "text-red-600"}>
-                              {classItem.is_qualified ? "✓ Completed" : "✗ Failed"}
+                              {classItem.is_qualified ? "Completed" : "Failed"}
                             </span>
                           ) : (
-                            <span className="text-gray-500">No Upload</span>
+                            <span className="text-orange-600">No Upload</span>
                           )}
                           {classItem.drive_url && (
                             <a
                               href={classItem.drive_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                              className="text-blue-700 hover:text-blue-900"
                             >
-                              <ExternalLink className="w-3 h-3" />
                               <span>View</span>
                             </a>
                           )}
@@ -788,7 +674,7 @@ export default function ManagePage() {
 
                         {/* Validation Message / Failure Reason */}
                         {classItem.has_upload && !classItem.is_qualified && classItem.validation_message && (
-                          <div className="text-xs p-2 rounded bg-red-100 text-red-700">
+                          <div className="text-xs p-2 rounded bg-blue-50 text-black border border-blue-200">
                             <span className="font-medium">Reason:</span> {classItem.validation_message}
                           </div>
                         )}
