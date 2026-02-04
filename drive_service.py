@@ -7,6 +7,7 @@ import os
 import logging
 from typing import Optional, Tuple
 from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
@@ -31,12 +32,15 @@ def _extract_folder_id(folder_input: str) -> str:
 
 
 # Target folder ID (can be overridden via env)
-# Example URL: https://drive.google.com/drive/folders/1UPs_ggE6RSclclWb9SYElaId4rJx4cec
-_DEFAULT_FOLDER = "1UPs_ggE6RSclclWb9SYElaId4rJx4cec"
+# If this ID is invalid/missing, the app will fallback to finding/creating a "Faculty Uploads" folder in Root.
+_DEFAULT_FOLDER = "" 
 DRIVE_FOLDER_ID = _extract_folder_id(
     os.environ.get("GOOGLE_DRIVE_FOLDER_URL", "")
     or os.environ.get("GOOGLE_DRIVE_FOLDER_ID", _DEFAULT_FOLDER)
 )
+
+# Global cache for the resolved root folder ID
+_RESOLVED_ROOT_ID = None
 
 # Path to service account credentials JSON file
 # This should be placed in the project root and NOT committed to version control
@@ -45,6 +49,9 @@ SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_ac
 # Service Account credentials as a JSON string (for deployment environments)
 SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
 
+# User Oath2 Token as JSON string (Preferred for uploading files to prevent quota errors)
+TOKEN_JSON_ENV = os.environ.get("GOOGLE_TOKEN_JSON")
+
 # Scopes required for Google Drive API
 SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file"]
 
@@ -52,13 +59,30 @@ SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/a
 def get_drive_service():
     """
     Create and return an authenticated Google Drive service instance.
-    Uses service account credentials for server-to-server authentication.
-    Supports both file-based and env-var-based credentials.
+    Prioritizes User Credentials (token.json) to avoid Service Account quota limits.
     """
     creds = None
     
-    # Priority 1: JSON string from environment variable (Best for Render/Railway)
-    if SERVICE_ACCOUNT_JSON:
+    # Priority 1: User Auth via Environment Variable (Best for Cloud)
+    if TOKEN_JSON_ENV:
+        try:
+            import json
+            info = json.loads(TOKEN_JSON_ENV)
+            creds = Credentials.from_authorized_user_info(info, SCOPES)
+            logger.info("Authenticated with Google Drive using GOOGLE_TOKEN_JSON")
+        except Exception as e:
+            logger.error(f"Failed to parse GOOGLE_TOKEN_JSON: {e}")
+
+    # Priority 2: User Auth via Local File (Best for Local Development)
+    elif os.path.exists("token.json"):
+        try:
+            creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+            logger.info("Authenticated with Google Drive using token.json")
+        except Exception as e:
+            logger.error(f"Failed to load token.json: {e}")
+
+    # Priority 3: Service Account via Environment Variable
+    elif SERVICE_ACCOUNT_JSON:
         try:
             import json
             info = json.loads(SERVICE_ACCOUNT_JSON)
@@ -69,7 +93,7 @@ def get_drive_service():
         except Exception as e:
             logger.error(f"Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
     
-    # Priority 2: File-based credentials
+    # Priority 4: Service Account via Local File
     elif os.path.exists(SERVICE_ACCOUNT_FILE):
         try:
             creds = service_account.Credentials.from_service_account_file(
@@ -115,6 +139,57 @@ def _get_faculty_names_from_db() -> list:
                 pass
 
 
+def get_target_root_id(service) -> Optional[str]:
+    """
+    Returns the effective root folder ID.
+    1. Checks if configured DRIVE_FOLDER_ID is valid.
+    2. If not, finds/creates 'Faculty Uploads' in the My Drive root.
+    """
+    global _RESOLVED_ROOT_ID
+    if _RESOLVED_ROOT_ID:
+        return _RESOLVED_ROOT_ID
+
+    # 1. Try configured ID if it exists
+    if DRIVE_FOLDER_ID:
+        try:
+            service.files().get(fileId=DRIVE_FOLDER_ID, fields="id").execute()
+            logger.info(f"Using configured Drive folder ID: {DRIVE_FOLDER_ID}")
+            _RESOLVED_ROOT_ID = DRIVE_FOLDER_ID
+            return _RESOLVED_ROOT_ID
+        except HttpError:
+            logger.warning(f"Configured folder ID '{DRIVE_FOLDER_ID}' not found or inaccessible. Falling back to auto-discovery.")
+
+    # 2. Fallback: Find or Create "Faculty Uploads" in Root
+    folder_name = "Faculty Uploads"
+    try:
+        # Check if it exists in 'root'
+        q = f"mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and trashed=false"
+        results = service.files().list(q=q, spaces='drive', fields='files(id, name)').execute()
+        files = results.get('files', [])
+        
+        if files:
+            found_id = files[0]['id']
+            logger.info(f"Found existing '{folder_name}' folder: {found_id}")
+            _RESOLVED_ROOT_ID = found_id
+            return found_id
+        
+        # Create it
+        metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder',
+            # no parents = root
+        }
+        file = service.files().create(body=metadata, fields='id').execute()
+        new_id = file.get('id')
+        logger.info(f"Created new '{folder_name}' folder: {new_id}")
+        _RESOLVED_ROOT_ID = new_id
+        return new_id
+        
+    except Exception as e:
+        logger.error(f"Failed to resolve root folder: {e}")
+        return None
+
+
 def _get_or_create_folder(service, folder_name: str, parent_id: str) -> Optional[str]:
     """Find a folder with `folder_name` under `parent_id`; create it if missing.
 
@@ -148,7 +223,7 @@ def _get_or_create_folder(service, folder_name: str, parent_id: str) -> Optional
 
 
 def ensure_faculty_folders(service) -> dict:
-    """Ensure a folder exists for every faculty in the DB under DRIVE_FOLDER_ID.
+    """Ensure a folder exists for every faculty in the DB under the root folder.
 
     Returns a mapping of faculty name -> folder id (only for successfully found/created folders).
     """
@@ -157,10 +232,15 @@ def ensure_faculty_folders(service) -> dict:
         logger.warning("No Drive service available to ensure faculty folders")
         return mapping
 
+    root_id = get_target_root_id(service)
+    if not root_id:
+        logger.error("Could not determine root folder for faculty folders")
+        return mapping
+
     faculty_names = _get_faculty_names_from_db()
     logger.info(f"Syncing {len(faculty_names)} faculty folders on Drive")
     for name in faculty_names:
-        fid = _get_or_create_folder(service, name, DRIVE_FOLDER_ID)
+        fid = _get_or_create_folder(service, name, root_id)
         if fid:
             mapping[name] = fid
     return mapping
@@ -174,15 +254,6 @@ def upload_to_drive(
 ) -> Tuple[bool, Optional[str], Optional[str]]:
     """
     Upload a video file to the configured Google Drive folder.
-    
-    Args:
-        file_path: Local path to the video file
-        filename: Original filename of the video
-        faculty_name: Name of the faculty (for better file naming)
-        period: Period number (for better file naming)
-    
-    Returns:
-        Tuple of (success: bool, web_view_link: Optional[str], error_message: Optional[str])
     """
     service = get_drive_service()
     
@@ -193,12 +264,17 @@ def upload_to_drive(
         return False, None, f"File not found: {file_path}"
     
     try:
-        # Determine upload folder: prefer faculty-specific folder under DRIVE_FOLDER_ID
-        target_parents = [DRIVE_FOLDER_ID]
+        # Determine root folder
+        root_id = get_target_root_id(service)
+        if not root_id:
+            return False, None, "Could not find or create destination folder on Drive"
+
+        # Determine target parent (faculty folder or root)
+        target_parents = [root_id]
 
         if faculty_name:
             # ensure faculty folder exists (create if missing)
-            faculty_folder_id = _get_or_create_folder(service, faculty_name, DRIVE_FOLDER_ID)
+            faculty_folder_id = _get_or_create_folder(service, faculty_name, root_id)
             if faculty_folder_id:
                 target_parents = [faculty_folder_id]
 
@@ -318,34 +394,31 @@ def delete_from_drive(file_id: str) -> bool:
 def check_drive_connection() -> Tuple[bool, str]:
     """
     Check if Google Drive service is properly configured and accessible.
-    
-    Returns:
-        Tuple of (is_connected: bool, message: str)
     """
-    if not os.path.exists(SERVICE_ACCOUNT_FILE):
-        return False, f"Service account file not found: {SERVICE_ACCOUNT_FILE}"
-    
+    # Simply check if we can get a service object (Token or Service Account)
     service = get_drive_service()
     if service is None:
-        return False, "Failed to initialize Google Drive service"
+        if os.path.exists("token.json") or os.environ.get("GOOGLE_TOKEN_JSON"):
+             return False, "Failed to initialize Drive service with Token."
+        if os.path.exists(SERVICE_ACCOUNT_FILE) or SERVICE_ACCOUNT_JSON:
+             return False, "Failed to initialize Drive service with Service Account."
+        return False, "No credentials found (token.json or service_account.json)."
     
     try:
-        # Try to access the target folder
-        folder = service.files().get(
-            fileId=DRIVE_FOLDER_ID,
-            fields="id, name",
-            supportsAllDrives=True
-        ).execute()
-        logger.info("Connected to Google Drive")
-        logger.info(f"Target folder: {folder.get('name')} ({folder.get('id')})")
+        # Try to resolve or create the root folder
+        root_id = get_target_root_id(service)
+        if not root_id:
+             return False, "Connected, but failed to find or create 'Faculty Uploads' folder."
 
-        # Ensure faculty subfolders exist and create missing ones from DB
+        # Get folder details for msg
+        folder = service.files().get(fileId=root_id, fields="name").execute()
+        folder_name = folder.get('name', 'Unknown')
+        
+        logger.info(f"Connected to Google Drive folder: {folder_name} ({root_id})")
+
+        # Ensure faculty subfolders exist
         created = ensure_faculty_folders(service)
-        logger.info(f"Ensured {len(created)} faculty folders on Drive")
-        return True, f"Connected to Google Drive folder: {folder.get('name', DRIVE_FOLDER_ID)}; ensured {len(created)} faculty folders"
-    except HttpError as error:
-        if error.resp.status == 404:
-            return False, f"Target folder not found or not accessible: {DRIVE_FOLDER_ID}"
-        return False, f"Google Drive API error: {error}"
+        return True, f"Connected to Google Drive folder: '{folder_name}'; synced {len(created)} faculty folders"
+
     except Exception as e:
         return False, f"Connection check failed: {e}"

@@ -68,3 +68,7 @@ temp/
 uploads/
 # Google Drive Service Account (NEVER COMMIT)
 service_account.json
+# Google Drive Secrets
+service_account.json
+client_secret.json
+token.json
