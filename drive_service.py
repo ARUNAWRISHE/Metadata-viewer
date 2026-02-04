@@ -42,6 +42,9 @@ DRIVE_FOLDER_ID = _extract_folder_id(
 # This should be placed in the project root and NOT committed to version control
 SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")
 
+# Service Account credentials as a JSON string (for deployment environments)
+SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+
 # Scopes required for Google Drive API
 SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file"]
 
@@ -50,18 +53,38 @@ def get_drive_service():
     """
     Create and return an authenticated Google Drive service instance.
     Uses service account credentials for server-to-server authentication.
+    Supports both file-based and env-var-based credentials.
     """
-    if not os.path.exists(SERVICE_ACCOUNT_FILE):
-        logger.warning(f"Service account file not found: {SERVICE_ACCOUNT_FILE}")
-        logger.warning("Google Drive upload will be skipped. Place service_account.json in project root.")
+    creds = None
+    
+    # Priority 1: JSON string from environment variable (Best for Render/Railway)
+    if SERVICE_ACCOUNT_JSON:
+        try:
+            import json
+            info = json.loads(SERVICE_ACCOUNT_JSON)
+            creds = service_account.Credentials.from_service_account_info(
+                info, scopes=SCOPES
+            )
+            logger.info("Authenticated with Google Drive using GOOGLE_SERVICE_ACCOUNT_JSON env var")
+        except Exception as e:
+            logger.error(f"Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
+    
+    # Priority 2: File-based credentials
+    elif os.path.exists(SERVICE_ACCOUNT_FILE):
+        try:
+            creds = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+            )
+            logger.info(f"Authenticated with Google Drive using {SERVICE_ACCOUNT_FILE}")
+        except Exception as e:
+            logger.error(f"Failed to load service account file: {e}")
+            
+    if not creds:
+        logger.warning("Google Drive upload will be skipped. credentials not found.")
         return None
     
     try:
-        credentials = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE,
-            scopes=SCOPES
-        )
-        service = build("drive", "v3", credentials=credentials)
+        service = build("drive", "v3", credentials=creds)
         return service
     except Exception as e:
         logger.error(f"Failed to initialize Google Drive service: {e}")

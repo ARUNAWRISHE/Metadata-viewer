@@ -135,3 +135,26 @@ SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./metadata.db")
 
 Then add to Railway/Render environment variables:
 - `DATABASE_URL`: `postgresql://user:password@host:port/dbname`
+## Google Drive Integration Setup (Video Uploads)
+
+To enable direct video uploads to Google Drive in production (Railway/Render):
+
+### 1. Generate Service Account Key
+Follow the steps in GOOGLE_DRIVE_SETUP.md to get your service_account.json file.
+
+### 2. Prepare JSON for Environment Variable
+Open your service_account.json file and copy its **entire content**.
+You must remove newlines to make it a valid single-line string for some environments, or just paste it as-is if the dashboard supports multi-line values (Railway supports it).
+
+### 3. Set Environment Variable in Railway/Render
+Add a new environment variable:
+- **Variable Name**: GOOGLE_SERVICE_ACCOUNT_JSON
+- **Value**: (Paste the content of your service_account.json here)
+
+### 4. Set Drive Folder ID (Optional)
+If you want to use a specific Drive folder instead of the default:
+- **Variable Name**: GOOGLE_DRIVE_FOLDER_ID
+- **Value**: Your Google Drive Folder ID
+
+Once set, the application will automatically detect the credentials and enable direct Drive uploads.
+
