@@ -70,6 +70,32 @@ interface Department {
   code: string;
 }
 
+interface TodayClass {
+  period: number;
+  start_time: string;
+  end_time: string;
+  display_time: string;
+  faculty_id: number;
+  faculty_name: string;
+  department: string;
+  has_upload: boolean;
+  is_qualified: boolean | null;
+  upload_filename: string | null;
+  validation_message: string | null;
+}
+
+interface TodayStats {
+  total_classes: number;
+  faculty_with_uploads: number;
+  qualified_uploads: number;
+  pending_uploads: number;
+}
+
+interface TodayData {
+  classes: TodayClass[];
+  stats: TodayStats;
+}
+
 function getAdminAuth() {
   const stored = localStorage.getItem('adminAuth');
   if (stored) {
@@ -107,6 +133,10 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [todayData, setTodayData] = useState<TodayData | null>(null);
+  const [todayLoading, setTodayLoading] = useState<boolean>(false);
+  const [todayError, setTodayError] = useState<string | null>(null);
 
   const adminAuth = getAdminAuth();
 
@@ -118,6 +148,12 @@ export default function AdminDashboard() {
     }
     fetchData();
   }, [isManageRoute]);
+
+  useEffect(() => {
+    if (adminAuth || isManageRoute) {
+      fetchTodayData(selectedDate);
+    }
+  }, [selectedDate]);
 
   useEffect(() => {
     if ((adminAuth || isManageRoute) && activeTab === 'uploads') {
@@ -252,6 +288,24 @@ export default function AdminDashboard() {
     a.download = `uploads_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const fetchTodayData = async (date: string) => {
+    setTodayLoading(true);
+    setTodayError(null);
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/admin/today-classes?date=${date}`, { headers: getAdminHeaders(isManageRoute) });
+      if (!resp.ok) {
+        throw new Error('Failed to fetch date data');
+      }
+      const data = await resp.json();
+      setTodayData(data as TodayData);
+    } catch (err) {
+      setTodayError(err instanceof Error ? err.message : 'Failed to load date data');
+      setTodayData(null);
+    } finally {
+      setTodayLoading(false);
+    }
   };
 
   if (loading) {
@@ -456,6 +510,83 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Selected Date View */}
+            <Card className="bg-white border-blue-200 mt-6">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-black">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                    Date View
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e: any) => setSelectedDate(e.target.value)}
+                      className="text-black"
+                    />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {todayLoading ? (
+                  <p className="text-black/60">Loading date data...</p>
+                ) : todayError ? (
+                  <p className="text-red-600">{todayError}</p>
+                ) : todayData ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="p-3 bg-blue-50 rounded">
+                        <p className="text-sm text-black/60">Total Classes</p>
+                        <p className="text-lg font-bold text-black">{todayData.stats.total_classes}</p>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded">
+                        <p className="text-sm text-black/60">Faculties Uploaded</p>
+                        <p className="text-lg font-bold text-black">{todayData.stats.faculty_with_uploads}</p>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded">
+                        <p className="text-sm text-black/60">Qualified</p>
+                        <p className="text-lg font-bold text-black">{todayData.stats.qualified_uploads}</p>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded">
+                        <p className="text-sm text-black/60">Pending</p>
+                        <p className="text-lg font-bold text-black">{todayData.stats.pending_uploads}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      {todayData.classes.length === 0 ? (
+                        <p className="text-black/60">No scheduled classes for this date.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {todayData.classes.map(c => (
+                            <div key={`${c.faculty_id}_${c.period}`} className="flex items-center justify-between p-2 rounded bg-blue-50">
+                              <div>
+                                <p className="text-sm font-medium text-black">Period {c.period} — {c.display_time}</p>
+                                <p className="text-xs text-black/60">{c.faculty_name} • {c.department}</p>
+                              </div>
+                              <div className="text-right">
+                                {c.has_upload ? (
+                                  <p className={`text-sm ${c.is_qualified ? 'text-blue-600' : 'text-red-600'}`}>
+                                    {c.is_qualified ? 'Qualified' : 'Failed'}
+                                  </p>
+                                ) : (
+                                  <p className="text-sm text-black/60">No upload</p>
+                                )}
+                                {c.upload_filename && <p className="text-xs text-black/60 truncate max-w-[200px]">{c.upload_filename}</p>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-black/60">Select a date to view data.</p>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
 
@@ -468,7 +599,7 @@ export default function AdminDashboard() {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40\" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
                       <Input
                         placeholder="Search by faculty, filename, or department..."
                         value={searchQuery}

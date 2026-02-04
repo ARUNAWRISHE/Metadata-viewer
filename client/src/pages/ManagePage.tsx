@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 import {
   Loader2,
   Shield,
@@ -46,10 +47,17 @@ export default function ManagePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     autoLogin();
   }, []);
+
+  useEffect(() => {
+    if (adminToken) {
+      fetchTodayData(adminToken, selectedDate);
+    }
+  }, [selectedDate]);
 
   const autoLogin = async () => {
     try {
@@ -77,7 +85,7 @@ export default function ManagePage() {
     }
   };
 
-  const fetchTodayData = async (token?: string) => {
+  const fetchTodayData = async (token?: string, date?: string) => {
     const authToken = token || adminToken;
     if (!authToken) return;
     
@@ -86,9 +94,9 @@ export default function ManagePage() {
     try {
       const headers = { 'Authorization': `Bearer ${authToken}` };
       
-      // Get today's date
-      const today = new Date().toISOString().split('T')[0];
-      const url = `${API_BASE_URL}/api/admin/today-classes?date=${today}`;
+      // Use selected date or today's date
+      const targetDate = date || selectedDate;
+      const url = `${API_BASE_URL}/api/admin/today-classes?date=${targetDate}`;
       
       const response = await fetch(url, { headers });
       
@@ -150,13 +158,18 @@ export default function ManagePage() {
     return { ended, ongoing, upcoming };
   }, [todayClasses]); // Recalculate when todayClasses changes
 
-  const getTodayDate = () => {
-    return new Date().toLocaleDateString('en-US', {
+  const getDisplayDate = () => {
+    const date = new Date(selectedDate + 'T00:00:00');
+    return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedDate(e.target.value);
   };
 
   if (loading) {
@@ -181,12 +194,18 @@ export default function ManagePage() {
             </div>
             <div>
               <h1 className="text-xl font-bold">
-                <span className="text-primary">Today's</span> Classes
+                <span className="text-primary">Classes</span> Dashboard
               </h1>
-              <p className="text-xs text-muted-foreground">{getTodayDate()}</p>
+              <p className="text-xs text-muted-foreground">{getDisplayDate()}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={handleDateChange}
+              className="w-40"
+            />
             <Button variant="ghost" size="sm" onClick={() => fetchTodayData()}>
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
