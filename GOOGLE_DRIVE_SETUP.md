@@ -119,6 +119,13 @@ service_account.json
 
 ## Troubleshooting
 
+### "invalid_scope: Bad Request"
+- This means your existing `token.json` was created with different OAuth scopes.
+- Delete `token.json` and regenerate it using:
+   - `python setup_drive_token.py`
+- Then restart backend and retry upload.
+- If you deploy via environment variables, regenerate and update `GOOGLE_TOKEN_JSON` as well.
+
 ### "Service account file not found"
 - Ensure `service_account.json` is in the project root
 - Check the filename is exactly `service_account.json`

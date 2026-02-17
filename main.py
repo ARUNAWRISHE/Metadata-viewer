@@ -10,16 +10,22 @@ from typing import Optional, List
 import os
 import json
 import subprocess
-import tempfile
 import logging
+import uuid
+import re
+from pathlib import Path
 
 from database import get_db, engine
-from models import Base, Faculty, PeriodTiming, VideoUpload, Department, TimetableEntry, Admin
+from models import Base, Faculty, PeriodTiming, VideoUpload, Department, TimetableEntry, Admin, EngagementAnalysis
 from drive_service import upload_to_drive, check_drive_connection
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+_WHISPER_MODEL = None
+_PYANNOTE_PIPELINE = None
+_TRANSCRIBER_KIND = None
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -568,15 +574,19 @@ async def analyze_video(
             detail=f"Unsupported file format. Allowed: {', '.join(allowed_extensions)}"
         )
     
-    # Save to temp file for analysis
-    with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
-        content = await video.read()
-        tmp_file.write(content)
-        tmp_path = tmp_file.name
+    content = await video.read()
+    safe_name = os.path.basename(video.filename or f"video{file_ext}")
+    uploads_dir = Path(__file__).resolve().parent / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    stored_filename = f"{uuid.uuid4()}__{safe_name}"
+    stored_path = str((uploads_dir / stored_filename).resolve())
+    with open(stored_path, "wb") as output_file:
+        output_file.write(content)
     
     try:
         # Extract metadata
-        metadata = extract_video_metadata(tmp_path)
+        metadata = extract_video_metadata(stored_path)
         
         if metadata is None:
             # Fallback - use basic file info
@@ -620,7 +630,7 @@ async def analyze_video(
         # Upload to Google Drive (always upload regardless of qualification status)
         drive_url = None
         success, web_link, error = upload_to_drive(
-            file_path=tmp_path,
+            file_path=stored_path,
             filename=video.filename,
             faculty_name=current_faculty.name,
             period=validation_result["matched_period"]
@@ -649,6 +659,12 @@ async def analyze_video(
         )
         db.add(upload_record)
         db.commit()
+        db.refresh(upload_record)
+
+        try:
+            ensure_local_engagement_for_upload(upload_record, db, video_path=stored_path, force_recompute=True)
+        except Exception as engagement_error:
+            logger.warning(f"Failed to create local engagement record: {engagement_error}")
         
         return VideoAnalysisResponse(
             filename=video.filename,
@@ -668,9 +684,7 @@ async def analyze_video(
         )
         
     finally:
-        # Cleanup temp file
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        pass
 
 
 @app.get("/api/video/history", response_model=List[VideoHistoryResponse])
@@ -841,6 +855,9 @@ class TodayClassResponse(BaseModel):
     faculty_name: str
     department: str
     has_upload: bool
+    upload_id: Optional[int] = None
+    upload_date: Optional[str] = None
+    drive_url: Optional[str] = None
     is_qualified: Optional[bool] = None
     upload_filename: Optional[str] = None
     validation_message: Optional[str] = None
@@ -856,6 +873,398 @@ class TodayStatsResponse(BaseModel):
 class TodayDataResponse(BaseModel):
     classes: List[TodayClassResponse]
     stats: TodayStatsResponse
+
+
+def _load_whisper_model():
+    global _TRANSCRIBER_KIND
+    global _WHISPER_MODEL
+    if _WHISPER_MODEL is not None:
+        return _WHISPER_MODEL
+
+    model_name = os.getenv("WHISPER_MODEL", "medium")
+
+    try:
+        from faster_whisper import WhisperModel
+        _WHISPER_MODEL = WhisperModel(
+            model_name,
+            device=os.getenv("WHISPER_DEVICE", "cpu"),
+            compute_type=os.getenv("WHISPER_COMPUTE_TYPE", "int8"),
+        )
+        _TRANSCRIBER_KIND = "faster-whisper"
+        logger.info(f"Loaded faster-whisper model: {model_name}")
+        return _WHISPER_MODEL
+    except Exception as error:
+        logger.warning(f"faster-whisper unavailable ({model_name}): {error}")
+
+    try:
+        import whisper
+        _WHISPER_MODEL = whisper.load_model(model_name)
+        _TRANSCRIBER_KIND = "openai-whisper"
+        logger.info(f"Loaded openai-whisper model: {model_name}")
+        return _WHISPER_MODEL
+    except Exception as error:
+        logger.warning(f"No Whisper model available ({model_name}): {error}")
+        _WHISPER_MODEL = False
+        _TRANSCRIBER_KIND = "none"
+        return None
+
+
+def _transcribe_audio(video_path: str) -> tuple[str, list]:
+    model = _load_whisper_model()
+    if not model:
+        return "", []
+
+    try:
+        if _TRANSCRIBER_KIND == "faster-whisper":
+            segment_iter, _ = model.transcribe(video_path, beam_size=5, vad_filter=True)
+            segments = []
+            text_parts = []
+            for segment in segment_iter:
+                seg_text = (segment.text or "").strip()
+                if seg_text:
+                    text_parts.append(seg_text)
+                segments.append({
+                    "start": float(segment.start),
+                    "end": float(segment.end),
+                    "text": seg_text,
+                })
+            return " ".join(text_parts).strip(), segments
+
+        result = model.transcribe(video_path, verbose=False)
+        transcript = (result.get("text") or "").strip()
+        segments = result.get("segments") or []
+        return transcript, segments
+    except Exception as error:
+        logger.warning(f"Transcription failed for {video_path}: {error}")
+        return "", []
+
+
+def _load_pyannote_pipeline():
+    global _PYANNOTE_PIPELINE
+    if _PYANNOTE_PIPELINE is not None:
+        return _PYANNOTE_PIPELINE
+
+    hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN")
+    if not hf_token:
+        _PYANNOTE_PIPELINE = False
+        return None
+
+    try:
+        from pyannote.audio import Pipeline
+        _PYANNOTE_PIPELINE = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1",
+            use_auth_token=hf_token
+        )
+        logger.info("Loaded pyannote diarization pipeline")
+        return _PYANNOTE_PIPELINE
+    except Exception as error:
+        logger.warning(f"pyannote pipeline unavailable: {error}")
+        _PYANNOTE_PIPELINE = False
+        return None
+
+
+def _extractive_summary(transcript: str, sentence_count: int = 3) -> str:
+    if not transcript:
+        return "Transcript unavailable."
+
+    sentences = re.split(r'(?<=[.!?])\s+', transcript.strip())
+    sentences = [sentence.strip() for sentence in sentences if sentence.strip()]
+    if not sentences:
+        return transcript[:240]
+
+    selected = sentences[:max(1, sentence_count)]
+    return " ".join(selected)
+
+
+def _detect_fillers_from_text(transcript: str) -> dict:
+    patterns = {
+        "um": r"\bum+\b",
+        "uh": r"\buh+\b",
+        "like": r"\blike\b",
+        "you know": r"\byou\s+know\b",
+        "basically": r"\bbasically\b",
+        "actually": r"\bactually\b",
+        "so": r"\bso\b",
+        "right": r"\bright\b",
+    }
+
+    text = (transcript or "").lower()
+    counts = {}
+    for key, pattern in patterns.items():
+        found = re.findall(pattern, text, flags=re.IGNORECASE)
+        if found:
+            counts[key] = len(found)
+    return counts
+
+
+def _detect_speaking_gaps(video_path: str) -> tuple[list, float]:
+    try:
+        import librosa
+
+        y, sr = librosa.load(video_path, sr=16000, mono=True)
+        if y is None or len(y) == 0:
+            return [], 0.0
+
+        intervals = librosa.effects.split(y, top_db=35)
+        if len(intervals) == 0:
+            return [], 0.0
+
+        gaps = []
+        total_gap = 0.0
+        prev_end = intervals[0][1] / sr
+
+        for idx in range(1, len(intervals)):
+            cur_start = intervals[idx][0] / sr
+            gap_duration = cur_start - prev_end
+            if gap_duration >= 0.4:
+                gap = {
+                    "start": round(prev_end, 2),
+                    "end": round(cur_start, 2),
+                    "duration": round(gap_duration, 2)
+                }
+                gaps.append(gap)
+                total_gap += gap_duration
+            prev_end = intervals[idx][1] / sr
+
+        return gaps, round(total_gap, 2)
+    except Exception as error:
+        logger.warning(f"Gap detection failed for {video_path}: {error}")
+        return [], 0.0
+
+
+def _detect_speakers(video_path: str, fallback_duration: int) -> tuple[int, list]:
+    pipeline = _load_pyannote_pipeline()
+    if not pipeline:
+        return 1, [{
+            "speaker": "Speaker 1 (Faculty)",
+            "start": 0,
+            "end": fallback_duration,
+            "duration": fallback_duration,
+            "percentage": 100.0,
+        }]
+
+    try:
+        diarization = pipeline(video_path)
+        speaker_durations = {}
+        for turn, _, speaker in diarization.itertracks(yield_label=True):
+            dur = max(0.0, float(turn.end - turn.start))
+            speaker_durations[speaker] = speaker_durations.get(speaker, 0.0) + dur
+
+        total = sum(speaker_durations.values())
+        if total <= 0:
+            raise RuntimeError("No positive diarization duration")
+
+        ordered = sorted(speaker_durations.items(), key=lambda item: item[1], reverse=True)
+        segments = []
+        offset = 0.0
+        for index, (_, duration) in enumerate(ordered, start=1):
+            percentage = (duration / total) * 100
+            label = "Speaker 1 (Faculty)" if index == 1 else f"Speaker {index}"
+            segments.append({
+                "speaker": label,
+                "start": round(offset, 2),
+                "end": round(offset + duration, 2),
+                "duration": round(duration, 2),
+                "percentage": round(percentage, 2),
+            })
+            offset += duration
+
+        return len(segments), segments
+    except Exception as error:
+        logger.warning(f"Speaker diarization failed for {video_path}: {error}")
+        return 1, [{
+            "speaker": "Speaker 1 (Faculty)",
+            "start": 0,
+            "end": fallback_duration,
+            "duration": fallback_duration,
+            "percentage": 100.0,
+        }]
+
+
+def _build_engagement_timeline(segments: list, duration_seconds: int, baseline: int) -> list:
+    if duration_seconds <= 0:
+        return [{"minute": 1, "score": baseline}]
+
+    points = []
+    total_minutes = max(1, int((duration_seconds + 59) // 60))
+    for minute in range(1, total_minutes + 1):
+        minute_start = (minute - 1) * 60
+        minute_end = minute * 60
+
+        minute_words = 0
+        for segment in segments or []:
+            segment_start = float(segment.get("start", 0))
+            segment_end = float(segment.get("end", 0))
+            text = (segment.get("text") or "").strip()
+            if not text:
+                continue
+
+            overlap = max(0.0, min(segment_end, minute_end) - max(segment_start, minute_start))
+            seg_dur = max(0.1, segment_end - segment_start)
+            if overlap > 0:
+                word_count = len(text.split())
+                minute_words += (word_count * overlap / seg_dur)
+
+        minute_score = _clamp_score((baseline * 0.65) + min(35, minute_words * 1.1))
+        points.append({"minute": minute, "score": minute_score})
+
+    return points
+
+
+def _resolve_stored_video_path(filename: Optional[str]) -> Optional[str]:
+    if not filename:
+        return None
+
+    uploads_dir = Path(__file__).resolve().parent / "uploads"
+    if not uploads_dir.exists():
+        return None
+
+    candidates = list(uploads_dir.glob(f"*__{filename}"))
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    return str(candidates[0].resolve())
+
+
+def _clamp_score(value: float) -> int:
+    return max(0, min(100, int(round(value))))
+
+
+def build_engagement_from_upload(upload: VideoUpload, video_path: Optional[str] = None) -> dict:
+    duration_seconds = int(upload.duration_seconds or 0)
+    if duration_seconds <= 0 and video_path and os.path.exists(video_path):
+        try:
+            metadata = extract_video_metadata(video_path) or {}
+            duration_seconds = int(float(metadata.get("duration_seconds", 0) or 0))
+        except Exception:
+            duration_seconds = 0
+
+    transcript = ""
+    transcript_segments = []
+
+    if video_path and os.path.exists(video_path):
+        transcript, transcript_segments = _transcribe_audio(video_path)
+
+    summary = _extractive_summary(transcript)
+    filler_dict = _detect_fillers_from_text(transcript)
+    filler_total = sum(filler_dict.values())
+
+    gaps, total_gap_duration = ([], 0.0)
+    if video_path and os.path.exists(video_path):
+        gaps, total_gap_duration = _detect_speaking_gaps(video_path)
+
+    speaker_count, speaker_segments = _detect_speakers(video_path, duration_seconds)
+
+    total_words = len(transcript.split()) if transcript else 0
+    effective_speaking_seconds = max(1.0, float(duration_seconds) - float(total_gap_duration))
+    speaking_rate_wpm = int((total_words / effective_speaking_seconds) * 60) if total_words > 0 else 0
+
+    if total_words == 0:
+        engagement_score = 0
+    else:
+        filler_penalty = min(25, (filler_total / max(1, total_words)) * 200)
+        gap_penalty = min(20, total_gap_duration / max(1, duration_seconds) * 100)
+        speaking_rate_bonus = 10 if 100 <= speaking_rate_wpm <= 170 else 0
+        engagement_score = _clamp_score(70 - filler_penalty - gap_penalty + speaking_rate_bonus)
+
+    video_engagement_score = _clamp_score((engagement_score * 0.7) + (10 if upload.is_qualified else 0))
+    combined_engagement_score = _clamp_score((engagement_score * 0.65) + (video_engagement_score * 0.35))
+
+    if transcript:
+        positive_markers = ["good", "great", "excellent", "clear", "understand", "important"]
+        negative_markers = ["confuse", "problem", "difficult", "error", "wrong"]
+        pos = sum(transcript.lower().count(token) for token in positive_markers)
+        neg = sum(transcript.lower().count(token) for token in negative_markers)
+        overall_sentiment = "positive" if pos >= neg else "neutral"
+        emotional_tone = "active" if (total_words > 120 and speaking_rate_wpm > 110) else "moderate"
+    else:
+        overall_sentiment = "neutral"
+        emotional_tone = "calm"
+
+    turn_taking_frequency = round((max(0, speaker_count - 1) / max(1.0, duration_seconds / 60)), 2)
+    timeline = _build_engagement_timeline(transcript_segments, duration_seconds, engagement_score)
+
+    clarity_score = _clamp_score(75 - min(25, (filler_total / max(1, total_words)) * 180) - min(15, total_gap_duration)) if total_words else 0
+    confidence_score = _clamp_score((combined_engagement_score * 0.8) + (10 if speaking_rate_wpm >= 100 else 0)) if total_words else 0
+
+    return {
+        "meeting_id": str(uuid.uuid4()),
+        "engagement_score": engagement_score,
+        "combined_engagement_score": combined_engagement_score,
+        "overall_sentiment": overall_sentiment,
+        "emotional_tone": emotional_tone,
+        "turn_taking_frequency": turn_taking_frequency,
+        "video_engagement_score": video_engagement_score,
+        "video_file_name": upload.filename,
+        "audio_file_name": upload.filename,
+        "transcript": transcript,
+        "summary": summary,
+        "filler_words": json.dumps(filler_dict),
+        "filler_word_total": filler_total,
+        "speaking_gaps": json.dumps(gaps),
+        "total_gaps": len(gaps),
+        "total_gap_duration": float(total_gap_duration),
+        "speaker_count": speaker_count,
+        "speaker_segments": json.dumps(speaker_segments),
+        "speaking_rate_wpm": speaking_rate_wpm,
+        "total_words": total_words,
+        "clarity_score": clarity_score,
+        "confidence_score": confidence_score,
+        "engagement_timeline": json.dumps(timeline),
+    }
+
+
+def ensure_local_engagement_for_upload(
+    upload: VideoUpload,
+    db: Session,
+    video_path: Optional[str] = None,
+    force_recompute: bool = False,
+) -> EngagementAnalysis:
+    existing = db.query(EngagementAnalysis).filter(
+        EngagementAnalysis.video_upload_id == upload.id
+    ).first()
+
+    if existing and not force_recompute:
+        return existing
+
+    if existing and force_recompute:
+        db.delete(existing)
+        db.commit()
+
+    payload = build_engagement_from_upload(upload, video_path=video_path)
+
+    analysis = EngagementAnalysis(
+        meeting_id=payload["meeting_id"],
+        video_upload_id=upload.id,
+        faculty_id=upload.faculty_id,
+        video_file_name=payload["video_file_name"],
+        audio_file_name=payload["audio_file_name"],
+        engagement_score=payload["engagement_score"],
+        combined_engagement_score=payload["combined_engagement_score"],
+        overall_sentiment=payload["overall_sentiment"],
+        emotional_tone=payload["emotional_tone"],
+        turn_taking_frequency=str(payload["turn_taking_frequency"]),
+        video_engagement_score=payload["video_engagement_score"],
+        transcript=payload["transcript"],
+        summary=payload["summary"],
+        filler_words=payload["filler_words"],
+        filler_word_total=payload["filler_word_total"],
+        speaking_gaps=payload["speaking_gaps"],
+        total_gaps=payload["total_gaps"],
+        total_gap_duration=payload["total_gap_duration"],
+        speaker_count=payload["speaker_count"],
+        speaker_segments=payload["speaker_segments"],
+        speaking_rate_wpm=payload["speaking_rate_wpm"],
+        total_words=payload["total_words"],
+        clarity_score=payload["clarity_score"],
+        confidence_score=payload["confidence_score"],
+        engagement_timeline=payload["engagement_timeline"],
+    )
+    db.add(analysis)
+    db.commit()
+    db.refresh(analysis)
+    return analysis
 
 
 def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
@@ -1133,6 +1542,9 @@ def get_today_classes(
                     faculty_name=schedule.faculty.name,
                     department=department_code or "N/A",
                     has_upload=upload is not None,
+                    upload_id=upload.id if upload else None,
+                    upload_date=upload.upload_date.isoformat() if upload and upload.upload_date else None,
+                    drive_url=upload.drive_url if upload else None,
                     is_qualified=upload.is_qualified if upload else None,
                     upload_filename=upload.filename if upload else None,
                     validation_message=upload.validation_message if upload else None
@@ -1158,6 +1570,126 @@ def get_today_classes(
         raise HTTPException(status_code=400, detail=f"Invalid date format: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch today's data: {str(e)}")
+
+
+def _serialize_engagement(item: EngagementAnalysis) -> dict:
+    """Serialize an EngagementAnalysis row to a JSON-safe dict."""
+    import json as _json
+    return {
+        "meeting_id": item.meeting_id,
+        "engagement_score": item.engagement_score,
+        "combined_engagement_score": item.combined_engagement_score,
+        "overall_sentiment": item.overall_sentiment,
+        "emotional_tone": item.emotional_tone,
+        "turn_taking_frequency": float(item.turn_taking_frequency or 0),
+        "video_file_name": item.video_file_name,
+        "audio_file_name": item.audio_file_name,
+        "video_analysis": {
+            "video_engagement_score": item.video_engagement_score
+        },
+        # Extended analysis
+        "transcript": item.transcript,
+        "summary": item.summary,
+        "filler_words": _json.loads(item.filler_words) if item.filler_words else {},
+        "filler_word_total": item.filler_word_total or 0,
+        "speaking_gaps": _json.loads(item.speaking_gaps) if item.speaking_gaps else [],
+        "total_gaps": item.total_gaps or 0,
+        "total_gap_duration": item.total_gap_duration or 0.0,
+        "speaker_count": item.speaker_count or 1,
+        "speaker_segments": _json.loads(item.speaker_segments) if item.speaker_segments else [],
+        "speaking_rate_wpm": item.speaking_rate_wpm or 0,
+        "total_words": item.total_words or 0,
+        "clarity_score": item.clarity_score or 0,
+        "confidence_score": item.confidence_score or 0,
+        "engagement_timeline": _json.loads(item.engagement_timeline) if item.engagement_timeline else [],
+        "created_at": item.created_at.isoformat() if item.created_at else None
+    }
+
+
+@app.get("/api/engagement/all-analyses")
+def get_all_engagement_analyses(
+    page: int = 1,
+    page_size: int = 100,
+    faculty_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 10
+    if page_size > 500:
+        page_size = 500
+
+    query = db.query(EngagementAnalysis)
+    if faculty_id:
+        query = query.filter(EngagementAnalysis.faculty_id == faculty_id)
+
+    total = query.count()
+    items = query.order_by(EngagementAnalysis.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    data = [_serialize_engagement(item) for item in items]
+
+    return {
+        "status": "success",
+        "message": f"Retrieved {len(data)} analyses",
+        "data": data,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size if page_size else 1
+        }
+    }
+
+
+@app.get("/api/engagement/analysis/{meeting_id}")
+def get_engagement_by_meeting_id(meeting_id: str, db: Session = Depends(get_db)):
+    item = db.query(EngagementAnalysis).filter(EngagementAnalysis.meeting_id == meeting_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Engagement analysis not found")
+
+    return {
+        "status": "success",
+        "data": _serialize_engagement(item)
+    }
+
+
+@app.post("/api/admin/engagement/backfill")
+def backfill_engagement(
+    force: bool = False,
+    current_admin=Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Backfill engagement data. Use ?force=true to regenerate all records."""
+    uploads = db.query(VideoUpload).all()
+    created = 0
+
+    if force:
+        db.query(EngagementAnalysis).delete()
+        db.commit()
+
+    for upload in uploads:
+        existing = db.query(EngagementAnalysis).filter(
+            EngagementAnalysis.video_upload_id == upload.id
+        ).first()
+        if existing:
+            continue
+
+        local_video_path = _resolve_stored_video_path(upload.filename)
+        ensure_local_engagement_for_upload(
+            upload,
+            db,
+            video_path=local_video_path,
+            force_recompute=False,
+        )
+        created += 1
+
+    return {
+        "status": "success",
+        "message": "Engagement backfill complete",
+        "total_uploads": len(uploads),
+        "created": created
+    }
 
 
 if __name__ == "__main__":

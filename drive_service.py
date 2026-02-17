@@ -6,6 +6,8 @@ Handles uploading video files to a fixed Google Drive folder using a service acc
 import os
 import logging
 from typing import Optional, Tuple
+from google.auth.transport.requests import Request
+from google.auth.exceptions import RefreshError
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -53,7 +55,8 @@ SERVICE_ACCOUNT_JSON = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
 TOKEN_JSON_ENV = os.environ.get("GOOGLE_TOKEN_JSON")
 
 # Scopes required for Google Drive API
-SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file"]
+# Keep this stable to avoid OAuth token scope mismatch (invalid_scope) with existing token.json.
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def get_drive_service():
@@ -68,16 +71,34 @@ def get_drive_service():
         try:
             import json
             info = json.loads(TOKEN_JSON_ENV)
-            creds = Credentials.from_authorized_user_info(info, SCOPES)
+            token_creds = Credentials.from_authorized_user_info(info, SCOPES)
+
+            # Validate/refresh immediately so scope issues are detected early
+            if token_creds.expired and token_creds.refresh_token:
+                token_creds.refresh(Request())
+
+            creds = token_creds
             logger.info("Authenticated with Google Drive using GOOGLE_TOKEN_JSON")
+        except RefreshError as e:
+            logger.warning(f"GOOGLE_TOKEN_JSON refresh failed (likely invalid scope): {e}. Falling back to service account.")
+            creds = None
         except Exception as e:
             logger.error(f"Failed to parse GOOGLE_TOKEN_JSON: {e}")
 
     # Priority 2: User Auth via Local File (Best for Local Development)
     elif os.path.exists("token.json"):
         try:
-            creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+            token_creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+
+            # Validate/refresh immediately so scope issues are detected before API calls
+            if token_creds.expired and token_creds.refresh_token:
+                token_creds.refresh(Request())
+
+            creds = token_creds
             logger.info("Authenticated with Google Drive using token.json")
+        except RefreshError as e:
+            logger.warning(f"token.json refresh failed (likely invalid scope): {e}. Falling back to service account.")
+            creds = None
         except Exception as e:
             logger.error(f"Failed to load token.json: {e}")
 
@@ -197,9 +218,11 @@ def _get_or_create_folder(service, folder_name: str, parent_id: str) -> Optional
     """
     try:
         # Query for folder with given name under parent
+        # Escape single-quotes in folder names to safely embed in Drive query
+        safe_folder_name = folder_name.replace("'", "\\'")
         q = (
             "mimeType='application/vnd.google-apps.folder' and "
-            f"name = '{folder_name.replace("'", "\\'")}' and '{parent_id}' in parents and trashed = false"
+            f"name = '{safe_folder_name}' and '{parent_id}' in parents and trashed = false"
         )
         res = service.files().list(q=q, spaces='drive', fields='files(id, name)').execute()
         files = res.get('files', [])

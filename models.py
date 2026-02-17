@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, Float, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -112,3 +112,42 @@ class VideoUpload(Base):
     drive_url = Column(String(500))  # Google Drive shareable link
     
     faculty = relationship("Faculty", back_populates="video_uploads")
+
+
+class EngagementAnalysis(Base):
+    __tablename__ = "engagement_analyses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    meeting_id = Column(String(100), unique=True, nullable=False, index=True)
+    video_upload_id = Column(Integer, ForeignKey("video_uploads.id"), nullable=False, index=True)
+    faculty_id = Column(Integer, ForeignKey("faculties.id"), nullable=False, index=True)
+    video_file_name = Column(String(255), nullable=True)
+    audio_file_name = Column(String(255), nullable=True)
+
+    engagement_score = Column(Integer, default=0)
+    combined_engagement_score = Column(Integer, default=0)
+    overall_sentiment = Column(String(50), default="neutral")
+    emotional_tone = Column(String(50), default="calm")
+    turn_taking_frequency = Column(String(20), default="0")
+    video_engagement_score = Column(Integer, default=0)
+
+    # --- Extended analysis fields ---
+    transcript = Column(Text, nullable=True)          # Full transcript / caption
+    summary = Column(Text, nullable=True)             # Short summary of the lecture
+    filler_words = Column(Text, nullable=True)        # JSON: {"um": 12, "uh": 8, ...}
+    filler_word_total = Column(Integer, default=0)
+    speaking_gaps = Column(Text, nullable=True)        # JSON: [{"start":10.2,"end":12.5,"duration":2.3}, ...]
+    total_gaps = Column(Integer, default=0)
+    total_gap_duration = Column(Float, default=0.0)    # seconds
+    speaker_count = Column(Integer, default=1)
+    speaker_segments = Column(Text, nullable=True)     # JSON: [{"speaker":"Speaker 1","start":0,"end":120,"duration":120}, ...]
+    speaking_rate_wpm = Column(Integer, default=0)     # words per minute
+    total_words = Column(Integer, default=0)
+    clarity_score = Column(Integer, default=0)         # 0-100
+    confidence_score = Column(Integer, default=0)      # 0-100
+    engagement_timeline = Column(Text, nullable=True)  # JSON: [{"minute":1,"score":72}, ...]
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    faculty = relationship("Faculty")
+    video_upload = relationship("VideoUpload")

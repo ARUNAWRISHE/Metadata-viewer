@@ -11,6 +11,7 @@ import Dashboard from "@/pages/Dashboard";
 import AdminLogin from "@/pages/AdminLogin";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ManagePage from "@/pages/ManagePage";
+import ManageClassDetail from "@/pages/ManageClassDetail";
 import Footer from "./components/footer";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
@@ -41,6 +42,7 @@ function Router() {
       <Route path="/admin" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
       <Route path="/manage" component={ManagePage} />
+      <Route path="/manage/class/:date/:facultyId/:period" component={ManageClassDetail} />
       <Route component={NotFound} />
     </Switch>
   );

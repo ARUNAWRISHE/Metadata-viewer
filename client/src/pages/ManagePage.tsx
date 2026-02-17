@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -38,6 +39,7 @@ interface Department {
 }
 
 export default function ManagePage() {
+  const [, setLocation] = useLocation();
   const [todayClasses, setTodayClasses] = useState<TodayClass[]>([]);
   const [stats, setStats] = useState<TodayStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -231,6 +233,11 @@ export default function ManagePage() {
   const clearFilters = () => {
     setSelectedDepartments([]);
     setSelectedPeriods([]);
+  };
+
+  const openClassDetails = (classItem: TodayClass) => {
+    if (!classItem.has_upload) return;
+    setLocation(`/manage/class/${selectedDate}/${classItem.faculty_id}/${classItem.period}`);
   };
 
   if (loading) {
@@ -495,6 +502,17 @@ export default function ManagePage() {
                             <span className="font-medium">Reason:</span> {classItem.validation_message}
                           </div>
                         )}
+
+                        {classItem.has_upload && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => openClassDetails(classItem)}
+                          >
+                            View Details
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -598,6 +616,17 @@ export default function ManagePage() {
                             <span className="font-medium">Reason:</span> {classItem.validation_message}
                           </div>
                         )}
+
+                        {classItem.has_upload && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => openClassDetails(classItem)}
+                          >
+                            View Details
+                          </Button>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -677,6 +706,17 @@ export default function ManagePage() {
                           <div className="text-xs p-2 rounded bg-blue-50 text-black border border-blue-200">
                             <span className="font-medium">Reason:</span> {classItem.validation_message}
                           </div>
+                        )}
+
+                        {classItem.has_upload && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                            onClick={() => openClassDetails(classItem)}
+                          >
+                            View Details
+                          </Button>
                         )}
                       </div>
                     </CardContent>
