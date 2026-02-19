@@ -5,7 +5,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  VITE_API_URL = "https://web-production-3d986.up.railway.app"
+  VITE_API_URL = "https://metadata-viewer-delta.vercel.app"
 
 [[redirects]]
   from = "/*"

@@ -18,7 +18,7 @@
 
 #### Step 2: Configure Environment Variables
 1. In Netlify dashboard, go to Site settings → Environment variables
-2. Add: **`VITE_API_URL = https://web-production-3d986.up.railway.app`**
+2. Add: **`VITE_API_URL = https://metadata-viewer-delta.vercel.app`**
 3. Redeploy the site
 
 ### Option 2: Cloudflare Pages

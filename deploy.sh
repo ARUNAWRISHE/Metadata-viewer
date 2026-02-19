@@ -5,7 +5,7 @@ echo "🚀 Starting deployment with Backend on Render..."
 # Backend is already deployed
 echo "
 ✅ Backend Status: DEPLOYED
-🔗 Backend URL: https://metadata-viewer.onrender.com
+🔗 Backend URL: https://metadata-viewer-delta.vercel.app
 
 📋 FRONTEND DEPLOYMENT STEPS:
 
@@ -20,7 +20,7 @@ echo "
    - Publish directory: client/dist
 6. Deploy site
 7. In Site settings > Environment variables, add:
-   - VITE_API_URL: https://metadata-viewer.onrender.com
+   - VITE_API_URL: https://metadata-viewer-delta.vercel.app
 
 🌐 STEP 1B: Alternative - Deploy Frontend (Cloudflare Pages)  
 1. Go to https://pages.cloudflare.com/
@@ -31,7 +31,7 @@ echo "
    - Build output: client/dist
    - Root directory: / (empty)
 5. Add environment variable:
-   - VITE_API_URL: [Your Railway backend URL]
+   - VITE_API_URL: https://metadata-viewer-delta.vercel.app
 
 🔄 STEP 3: Update Frontend Environment
 1. Copy your Railway app URL
