@@ -65,28 +65,47 @@ def get_drive_service():
     Prioritizes User Credentials (token.json) to avoid Service Account quota limits.
     """
     creds = None
-    
-    # Priority 1: User Auth via Environment Variable (Best for Cloud)
-    if TOKEN_JSON_ENV:
+
+    def _parse_json_env(raw_value: str, env_name: str):
+        import json
+        candidate = (raw_value or "").strip()
+        if not candidate:
+            return None
+        if (candidate.startswith("'") and candidate.endswith("'")) or (
+            candidate.startswith('"') and candidate.endswith('"')
+        ):
+            candidate = candidate[1:-1]
         try:
-            import json
-            info = json.loads(TOKEN_JSON_ENV)
-            token_creds = Credentials.from_authorized_user_info(info, SCOPES)
+            return json.loads(candidate)
+        except Exception as error:
+            logger.error(f"Failed to parse {env_name}: {error}")
+            return None
 
-            # Validate/refresh immediately so scope issues are detected early
-            if token_creds.expired and token_creds.refresh_token:
-                token_creds.refresh(Request())
+    token_json_env = os.environ.get("GOOGLE_TOKEN_JSON", "")
+    service_account_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")
 
-            creds = token_creds
-            logger.info("Authenticated with Google Drive using GOOGLE_TOKEN_JSON")
+    # Priority 1: User Auth via Environment Variable (Best for Cloud)
+    if token_json_env and not creds:
+        try:
+            info = _parse_json_env(token_json_env, "GOOGLE_TOKEN_JSON")
+            if info:
+                token_creds = Credentials.from_authorized_user_info(info, SCOPES)
+
+                # Validate/refresh immediately so scope issues are detected early
+                if token_creds.expired and token_creds.refresh_token:
+                    token_creds.refresh(Request())
+
+                creds = token_creds
+                logger.info("Authenticated with Google Drive using GOOGLE_TOKEN_JSON")
         except RefreshError as e:
-            logger.warning(f"GOOGLE_TOKEN_JSON refresh failed (likely invalid scope): {e}. Falling back to service account.")
+            logger.warning(f"GOOGLE_TOKEN_JSON refresh failed (likely invalid scope): {e}. Falling back to other credentials.")
             creds = None
         except Exception as e:
-            logger.error(f"Failed to parse GOOGLE_TOKEN_JSON: {e}")
+            logger.error(f"Failed to use GOOGLE_TOKEN_JSON: {e}")
 
     # Priority 2: User Auth via Local File (Best for Local Development)
-    elif os.path.exists("token.json"):
+    if not creds and os.path.exists("token.json"):
         try:
             token_creds = Credentials.from_authorized_user_file("token.json", SCOPES)
 
@@ -97,30 +116,30 @@ def get_drive_service():
             creds = token_creds
             logger.info("Authenticated with Google Drive using token.json")
         except RefreshError as e:
-            logger.warning(f"token.json refresh failed (likely invalid scope): {e}. Falling back to service account.")
+            logger.warning(f"token.json refresh failed (likely invalid scope): {e}. Falling back to other credentials.")
             creds = None
         except Exception as e:
             logger.error(f"Failed to load token.json: {e}")
 
     # Priority 3: Service Account via Environment Variable
-    elif SERVICE_ACCOUNT_JSON:
+    if not creds and service_account_json:
         try:
-            import json
-            info = json.loads(SERVICE_ACCOUNT_JSON)
-            creds = service_account.Credentials.from_service_account_info(
-                info, scopes=SCOPES
-            )
-            logger.info("Authenticated with Google Drive using GOOGLE_SERVICE_ACCOUNT_JSON env var")
+            info = _parse_json_env(service_account_json, "GOOGLE_SERVICE_ACCOUNT_JSON")
+            if info:
+                creds = service_account.Credentials.from_service_account_info(
+                    info, scopes=SCOPES
+                )
+                logger.info("Authenticated with Google Drive using GOOGLE_SERVICE_ACCOUNT_JSON env var")
         except Exception as e:
-            logger.error(f"Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
+            logger.error(f"Failed to use GOOGLE_SERVICE_ACCOUNT_JSON: {e}")
     
     # Priority 4: Service Account via Local File
-    elif os.path.exists(SERVICE_ACCOUNT_FILE):
+    if not creds and os.path.exists(service_account_file):
         try:
             creds = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+                service_account_file, scopes=SCOPES
             )
-            logger.info(f"Authenticated with Google Drive using {SERVICE_ACCOUNT_FILE}")
+            logger.info(f"Authenticated with Google Drive using {service_account_file}")
         except Exception as e:
             logger.error(f"Failed to load service account file: {e}")
             
@@ -173,7 +192,11 @@ def get_target_root_id(service) -> Optional[str]:
     # 1. Try configured ID if it exists
     if DRIVE_FOLDER_ID:
         try:
-            service.files().get(fileId=DRIVE_FOLDER_ID, fields="id").execute()
+            service.files().get(
+                fileId=DRIVE_FOLDER_ID,
+                fields="id",
+                supportsAllDrives=True,
+            ).execute()
             logger.info(f"Using configured Drive folder ID: {DRIVE_FOLDER_ID}")
             _RESOLVED_ROOT_ID = DRIVE_FOLDER_ID
             return _RESOLVED_ROOT_ID
@@ -185,7 +208,13 @@ def get_target_root_id(service) -> Optional[str]:
     try:
         # Check if it exists in 'root'
         q = f"mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and trashed=false"
-        results = service.files().list(q=q, spaces='drive', fields='files(id, name)').execute()
+        results = service.files().list(
+            q=q,
+            spaces='drive',
+            fields='files(id, name)',
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute()
         files = results.get('files', [])
         
         if files:
@@ -200,7 +229,11 @@ def get_target_root_id(service) -> Optional[str]:
             'mimeType': 'application/vnd.google-apps.folder',
             # no parents = root
         }
-        file = service.files().create(body=metadata, fields='id').execute()
+        file = service.files().create(
+            body=metadata,
+            fields='id',
+            supportsAllDrives=True,
+        ).execute()
         new_id = file.get('id')
         logger.info(f"Created new '{folder_name}' folder: {new_id}")
         _RESOLVED_ROOT_ID = new_id
@@ -224,7 +257,13 @@ def _get_or_create_folder(service, folder_name: str, parent_id: str) -> Optional
             "mimeType='application/vnd.google-apps.folder' and "
             f"name = '{safe_folder_name}' and '{parent_id}' in parents and trashed = false"
         )
-        res = service.files().list(q=q, spaces='drive', fields='files(id, name)').execute()
+        res = service.files().list(
+            q=q,
+            spaces='drive',
+            fields='files(id, name)',
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute()
         files = res.get('files', [])
         if files:
             return files[0].get('id')
@@ -421,9 +460,10 @@ def check_drive_connection() -> Tuple[bool, str]:
     # Simply check if we can get a service object (Token or Service Account)
     service = get_drive_service()
     if service is None:
+           service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")
         if os.path.exists("token.json") or os.environ.get("GOOGLE_TOKEN_JSON"):
              return False, "Failed to initialize Drive service with Token."
-        if os.path.exists(SERVICE_ACCOUNT_FILE) or SERVICE_ACCOUNT_JSON:
+           if os.path.exists(service_account_file) or os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
              return False, "Failed to initialize Drive service with Service Account."
         return False, "No credentials found (token.json or service_account.json)."
     
