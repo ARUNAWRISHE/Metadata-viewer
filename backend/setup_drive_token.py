@@ -1,5 +1,6 @@
 import os.path
 import json
+import tempfile
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -31,7 +32,20 @@ def main():
                 creds = None
 
         if not creds:
-            if not os.path.exists("client_secret.json"):
+            client_secret_json_env = os.environ.get("GOOGLE_CLIENT_SECRET_JSON", "").strip()
+            client_secret_file = "client_secret.json"
+
+            if client_secret_json_env:
+                try:
+                    data = json.loads(client_secret_json_env)
+                    temp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+                    with temp:
+                        json.dump(data, temp)
+                    client_secret_file = temp.name
+                except Exception:
+                    print("GOOGLE_CLIENT_SECRET_JSON is set but invalid JSON. Falling back to client_secret.json file...")
+
+            if not os.path.exists(client_secret_file):
                 print("\nCRITICAL ERROR: 'client_secret.json' not found!")
                 print("---------------------------------------------------")
                 print("1. Go to Google Cloud Console > APIs & Services > Credentials")
@@ -43,7 +57,7 @@ def main():
 
             print("Launching browser for authentication...")
             flow = InstalledAppFlow.from_client_secrets_file(
-                "client_secret.json", SCOPES
+                client_secret_file, SCOPES
             )
             creds = flow.run_local_server(port=0)
 
