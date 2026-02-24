@@ -460,18 +460,18 @@ def check_drive_connection() -> Tuple[bool, str]:
     # Simply check if we can get a service object (Token or Service Account)
     service = get_drive_service()
     if service is None:
-           service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")
+        service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")
         if os.path.exists("token.json") or os.environ.get("GOOGLE_TOKEN_JSON"):
-             return False, "Failed to initialize Drive service with Token."
-           if os.path.exists(service_account_file) or os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
-             return False, "Failed to initialize Drive service with Service Account."
+            return False, "Failed to initialize Drive service with Token."
+        if os.path.exists(service_account_file) or os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
+            return False, "Failed to initialize Drive service with Service Account."
         return False, "No credentials found (token.json or service_account.json)."
-    
+
     try:
         # Try to resolve or create the root folder
         root_id = get_target_root_id(service)
         if not root_id:
-             return False, "Connected, but failed to find or create 'Faculty Uploads' folder."
+            return False, "Connected, but failed to find or create 'Faculty Uploads' folder."
 
         # Get folder details for msg
         folder = service.files().get(fileId=root_id, fields="name").execute()
