@@ -15,7 +15,7 @@ import uuid
 import re
 from pathlib import Path
 
-from database import get_db, engine
+from database import get_db, engine, SessionLocal
 from models import Base, Faculty, PeriodTiming, VideoUpload, Department, TimetableEntry, Admin, EngagementAnalysis
 from drive_service import upload_to_drive, check_drive_connection
 
@@ -34,10 +34,18 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="MetaView API", description="Faculty Video Metadata Validation System")
 
 # CORS
+raw_cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "https://faculty-class-analyzer.netlify.app,https://metadata-viewer.netlify.app,http://localhost:5173,http://127.0.0.1:5173"
+)
+cors_origins = [origin.strip() for origin in raw_cors_origins.split(",") if origin.strip()]
+if not cors_origins:
+    cors_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -190,6 +198,68 @@ def format_duration(seconds: int) -> str:
         parts.append(f"{minutes}m")
     parts.append(f"{secs}s")
     return " ".join(parts)
+
+
+def _initialize_database_if_needed() -> None:
+    auto_init = os.getenv("AUTO_INIT_DB", "true").strip().lower() in {"1", "true", "yes", "y"}
+    if not auto_init:
+        return
+
+    try:
+        from init import init_database
+        init_database()
+        logger.info("Database bootstrap completed")
+    except Exception as error:
+        logger.warning(f"Database bootstrap skipped: {error}")
+
+
+def _ensure_minimum_seed_data() -> None:
+    db = SessionLocal()
+    try:
+        departments = db.query(Department).count()
+        if departments == 0:
+            db.add(Department(name="General", code="GEN"))
+            db.commit()
+
+        periods = db.query(PeriodTiming).count()
+        if periods == 0:
+            default_periods = [
+                {"period": 1, "start_time": "08:00 AM", "end_time": "08:45 AM", "display_time": "08:00 AM - 08:45 AM"},
+                {"period": 2, "start_time": "08:45 AM", "end_time": "09:30 AM", "display_time": "08:45 AM - 09:30 AM"},
+                {"period": 3, "start_time": "09:45 AM", "end_time": "10:30 AM", "display_time": "09:45 AM - 10:30 AM"},
+                {"period": 4, "start_time": "10:30 AM", "end_time": "11:15 AM", "display_time": "10:30 AM - 11:15 AM"},
+                {"period": 5, "start_time": "11:15 AM", "end_time": "12:00 PM", "display_time": "11:15 AM - 12:00 PM"},
+                {"period": 6, "start_time": "01:00 PM", "end_time": "01:45 PM", "display_time": "01:00 PM - 01:45 PM"},
+                {"period": 7, "start_time": "01:45 PM", "end_time": "02:30 PM", "display_time": "01:45 PM - 02:30 PM"},
+                {"period": 8, "start_time": "02:30 PM", "end_time": "03:15 PM", "display_time": "02:30 PM - 03:15 PM"},
+                {"period": 9, "start_time": "03:30 PM", "end_time": "04:15 PM", "display_time": "03:30 PM - 04:15 PM"},
+            ]
+            for payload in default_periods:
+                db.add(PeriodTiming(**payload))
+            db.commit()
+
+        admins = db.query(Admin).count()
+        if admins == 0:
+            db.add(Admin(username="mail-admin@gmail.com", password=hash_password("admin123")))
+            db.commit()
+
+        faculties = db.query(Faculty).count()
+        if faculties == 0:
+            first_department = db.query(Department).order_by(Department.id.asc()).first()
+            department_id = first_department.id if first_department else None
+            class_codes = [first_department.code] if first_department else ["GEN"]
+            db.add(Faculty(
+                name="Default Faculty",
+                email="faculty@kgkite.ac.in",
+                password=hash_password("faculty123"),
+                phone="0000000000",
+                department_id=department_id,
+                classes=json.dumps(class_codes),
+            ))
+            db.commit()
+            logger.info("Inserted default faculty account: faculty@kgkite.ac.in / faculty123")
+    finally:
+        db.close()
 
 
 def extract_video_metadata(file_path: str) -> dict:
@@ -1695,3 +1765,9 @@ def backfill_engagement(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    _initialize_database_if_needed()
+    _ensure_minimum_seed_data()

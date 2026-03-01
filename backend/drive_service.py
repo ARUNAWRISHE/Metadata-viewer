@@ -421,18 +421,10 @@ def check_drive_connection() -> Tuple[bool, str]:
     # Simply check if we can get a service object (Token or Service Account)
     service = get_drive_service()
     if service is None:
-<<<<<<< HEAD:drive_service.py
-        if os.path.exists("token.json") or os.environ.get("GOOGLE_TOKEN_JSON"):
-             return False, "Failed to initialize Drive service with Token."
-        if os.path.exists(SERVICE_ACCOUNT_FILE) or SERVICE_ACCOUNT_JSON:
-             return False, "Failed to initialize Drive service with Service Account."
-=======
-        service_account_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json")
         if os.path.exists("token.json") or os.environ.get("GOOGLE_TOKEN_JSON"):
             return False, "Failed to initialize Drive service with Token."
-        if os.path.exists(service_account_file) or os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON"):
+        if os.path.exists(SERVICE_ACCOUNT_FILE) or SERVICE_ACCOUNT_JSON:
             return False, "Failed to initialize Drive service with Service Account."
->>>>>>> 89b0a421eecfd8eab3a0e40f8e94e1f632fd5893:backend/drive_service.py
         return False, "No credentials found (token.json or service_account.json)."
 
     try:
