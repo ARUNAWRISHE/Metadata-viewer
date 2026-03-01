@@ -43,7 +43,7 @@ app.add_middleware(
 )
 
 # Security
-SECRET_KEY = "metaview-secret-key-change-in-production-2024"
+SECRET_KEY = os.environ.get("SECRET_KEY", "metaview-secret-key-change-in-production-2024")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
