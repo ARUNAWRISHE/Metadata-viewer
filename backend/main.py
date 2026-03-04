@@ -54,6 +54,8 @@ app.add_middleware(
 SECRET_KEY = os.environ.get("SECRET_KEY", "metaview-secret-key-change-in-production-2024")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+MAX_VIDEO_UPLOAD_MB = int(os.getenv("MAX_VIDEO_UPLOAD_MB", "200"))
+ENABLE_INLINE_ENGAGEMENT_ANALYSIS = os.getenv("ENABLE_INLINE_ENGAGEMENT_ANALYSIS", "false").strip().lower() in {"1", "true", "yes", "y"}
 
 security = HTTPBearer()
 
@@ -644,15 +646,31 @@ async def analyze_video(
             detail=f"Unsupported file format. Allowed: {', '.join(allowed_extensions)}"
         )
     
-    content = await video.read()
     safe_name = os.path.basename(video.filename or f"video{file_ext}")
     uploads_dir = Path(__file__).resolve().parent / "uploads"
     uploads_dir.mkdir(parents=True, exist_ok=True)
 
     stored_filename = f"{uuid.uuid4()}__{safe_name}"
     stored_path = str((uploads_dir / stored_filename).resolve())
+    file_size = 0
+    max_upload_bytes = MAX_VIDEO_UPLOAD_MB * 1024 * 1024
+
     with open(stored_path, "wb") as output_file:
-        output_file.write(content)
+        while True:
+            chunk = await video.read(1024 * 1024)
+            if not chunk:
+                break
+            file_size += len(chunk)
+            if file_size > max_upload_bytes:
+                try:
+                    os.remove(stored_path)
+                except OSError:
+                    pass
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=f"Video is too large. Max allowed size is {MAX_VIDEO_UPLOAD_MB} MB"
+                )
+            output_file.write(chunk)
     
     try:
         # Extract metadata
@@ -666,7 +684,7 @@ async def analyze_video(
                 "resolution": None,
                 "video_codec": None,
                 "audio_codec": None,
-                "file_size": len(content)
+                "file_size": file_size
             }
         
         duration_seconds = metadata.get("duration_seconds", 0)
@@ -715,7 +733,7 @@ async def analyze_video(
         upload_record = VideoUpload(
             faculty_id=current_faculty.id,
             filename=video.filename,
-            file_size=metadata.get("file_size", len(content)),
+            file_size=metadata.get("file_size", file_size),
             duration_seconds=duration_seconds,
             video_start_time=video_start_time,
             video_end_time=video_end_time,
@@ -731,14 +749,17 @@ async def analyze_video(
         db.commit()
         db.refresh(upload_record)
 
-        try:
-            ensure_local_engagement_for_upload(upload_record, db, video_path=stored_path, force_recompute=True)
-        except Exception as engagement_error:
-            logger.warning(f"Failed to create local engagement record: {engagement_error}")
+        if ENABLE_INLINE_ENGAGEMENT_ANALYSIS:
+            try:
+                ensure_local_engagement_for_upload(upload_record, db, video_path=stored_path, force_recompute=True)
+            except Exception as engagement_error:
+                logger.warning(f"Failed to create local engagement record: {engagement_error}")
+        else:
+            logger.info("Inline engagement analysis skipped (ENABLE_INLINE_ENGAGEMENT_ANALYSIS=false)")
         
         return VideoAnalysisResponse(
             filename=video.filename,
-            file_size=metadata.get("file_size", len(content)),
+            file_size=metadata.get("file_size", file_size),
             duration_seconds=duration_seconds,
             duration_formatted=format_duration(duration_seconds),
             video_start_time=video_start_time,
